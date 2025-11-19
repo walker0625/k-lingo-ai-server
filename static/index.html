@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K Lingo - AI 메타버스 한국어 학습</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 120px 20px 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '✈️';
+            position: absolute;
+            font-size: 200px;
+            opacity: 0.1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 4em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tagline {
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            opacity: 0.95;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 18px 40px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            font-weight: bold;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .problem {
+            padding: 80px 20px;
+            background: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            color: #667eea;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            font-size: 1.3em;
+            color: #666;
+            margin-bottom: 60px;
+            line-height: 1.8;
+        }
+
+        .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .problem-card {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+
+        .problem-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .solution {
+            padding: 80px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        .solution-box {
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-top: 40px;
+        }
+
+        .solution-points {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .solution-point {
+            display: flex;
+            align-items: start;
+            gap: 15px;
+        }
+
+        .solution-icon {
+            font-size: 2em;
+            flex-shrink: 0;
+        }
+
+        .features {
+            padding: 80px 20px;
+            background: white;
+        }
+
+        .feature-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 50px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            background: #f0f0f0;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .tab:hover, .tab.active {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .feature-content {
+            background: #f8f9fa;
+            padding: 50px;
+            border-radius: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .feature-item {
+            display: none;
+        }
+
+        .feature-item.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .feature-item h3 {
+            font-size: 2em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .feature-steps {
+            display: grid;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .step {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            display: flex;
+            gap: 20px;
+            align-items: start;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+            flex-shrink: 0;
+        }
+
+        .tech-stack {
+            padding: 80px 20px;
+            background: #2d3748;
+            color: white;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .tech-card {
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tech-card h3 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+
+        .tech-card ul {
+            list-style: none;
+        }
+
+        .tech-card li {
+            padding: 10px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .tech-card li::before {
+            content: '▹';
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .strengths {
+            padding: 80px 20px;
+            background: white;
+        }
+
+        .strength-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .strength-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .strength-card:hover {
+            transform: translateY(-10px);
+        }
+
+        .strength-card h3 {
+            font-size: 1.6em;
+            margin-bottom: 15px;
+        }
+
+        .value {
+            padding: 80px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        .value-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .value-card {
+            background: white;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .value-icon {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        .conclusion {
+            padding: 100px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .conclusion h2 {
+            color: white;
+            font-size: 3em;
+            margin-bottom: 30px;
+        }
+
+        .conclusion-points {
+            max-width: 800px;
+            margin: 40px auto;
+            text-align: left;
+            font-size: 1.2em;
+            line-height: 2;
+        }
+
+        .conclusion-points li {
+            margin-bottom: 20px;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .conclusion-points li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 1.5em;
+        }
+
+        .footer {
+            background: #1a202c;
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5em; }
+            h2 { font-size: 2em; }
+            .tagline { font-size: 1.3em; }
+            .feature-content { padding: 30px 20px; }
+            .solution-box { padding: 30px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <div class="hero-content">
+            <h1>K Lingo</h1>
+            <p class="tagline">실전 한국어를 배우는 AI 메타버스</p>
+            <p class="subtitle">Learn Practical Korean in AI-Powered Metaverse</p>
+            <p class="subtitle" style="font-size: 1.1em; margin-top: 20px;">
+                외국인이 한국 입국 절차를 따라가며<br>
+                읽기 → 듣기 → 쓰기 → 말하기를 자연스럽게 학습하는 언어 교육 콘텐츠
+            </p>
+            <a href="#features" class="cta-button">지금 시작하기 Start Now</a>
+        </div>
+    </section>
+
+    <section class="problem">
+        <div class="container">
+            <h2>Why Now? 왜 지금인가?</h2>
+            <p class="section-subtitle">
+                K-컬처 열풍으로 한국어 학습 수요가 폭발적으로 증가하고 있습니다<br>
+                2022년 906만명 → 2024년 1,770만명의 한국어 학습자
+            </p>
+            <div class="problem-grid">
+                <div class="problem-card">
+                    <h3>🚫 기존 플랫폼의 한계</h3>
+                    <p>듀오링고 등 기존 앱은 단순 문제 맞추기로 초중급 단어 암기에는 강하지만, <strong>실전 상황에서의 자연스러운 말하기</strong>로 이어지는 데는 한계가 명확합니다.</p>
+                </div>
+                <div class="problem-card">
+                    <h3>📱 실전과의 단절</h3>
+                    <p>교재·앱 기반 학습은 실제 상황과 다르며, 공항·생활 속에서 마주하는 <strong>맥락과 문화적 뉘앙스</strong>를 충분히 준비하지 못합니다.</p>
+                </div>
+                <div class="problem-card">
+                    <h3>⚡ 즉각 피드백 부재</h3>
+                    <p>발음·쓰기·듣기 오류에 대한 <strong>즉각적인 교정 피드백</strong>이 없어 학습자들이 같은 실수를 반복합니다.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="solution">
+        <div class="container">
+            <h2>Our Solution 우리의 해결책</h2>
+            <div class="solution-box">
+                <h3 style="font-size: 1.8em; color: #667eea; margin-bottom: 30px; text-align: center;">
+                    🎮 AI 기반 실전형 한국어 학습 메타버스
+                </h3>
+                <div class="solution-points">
+                    <div class="solution-point">
+                        <div class="solution-icon">🛬</div>
+                        <div>
+                            <strong style="font-size: 1.1em; color: #667eea;">실제 입국 절차 기반</strong>
+                            <p>공항 입국장에서 표지판, 방송, 입국카드, 대화 등 실전 언어가 모두 등장하는 완벽한 학습 환경</p>
+                        </div>
+                    </div>
+                    <div class="solution-point">
+                        <div class="solution-icon">🤖</div>
+                        <div>
+                            <strong style="font-size: 1.1em; color: #667eea;">AI Tutor 실시간 피드백</strong>
+                            <p>STT, TTS, OCR, LLM을 활용한 발음·문법·의미 분석으로 즉각적인 교정과 학습 지원</p>
+                        </div>
+                    </div>
+                    <div class="solution-point">
+                        <div class="solution-icon">🌐</div>
+                        <div>
+                            <strong style="font-size: 1.1em; color: #667eea;">언리얼 엔진 몰입형 환경</strong>
+                            <p>3D 메타버스로 실제 상황을 그대로 재현하여 맥락 파악과 문화적 이해를 극대화</p>
+                        </div>
+                    </div>
+                    <div class="solution-point">
+                        <div class="solution-icon">👥</div>
+                        <div>
+                            <strong style="font-size: 1.1em; color: #667eea;">협동 멀티플레이</strong>
+                            <p>여러 학습자가 함께 미션을 수행하며 실제 의사소통 능력을 향상</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <h2>핵심 기능 Core Features</h2>
+            <p class="section-subtitle">
+                4대 언어 기능(읽기·듣기·쓰기·말하기)을 하나의 시나리오에서 끊김 없이 학습
+            </p>
+            
+            <div class="feature-tabs">
+                <div class="tab active" onclick="showFeature(0)">📖 읽기 Reading</div>
+                <div class="tab" onclick="showFeature(1)">👂 듣기 Listening</div>
+                <div class="tab" onclick="showFeature(2)">✍️ 쓰기 Writing</div>
+                <div class="tab" onclick="showFeature(3)">🗣️ 말하기 Speaking</div>
+                <div class="tab" onclick="showFeature(4)">🎮 게임화 Gamification</div>
+            </div>
+
+            <div class="feature-content">
+                <div class="feature-item active">
+                    <h3>📖 협동 수하물 식별 미션</h3>
+                    <p style="font-size: 1.1em; margin-bottom: 30px;">
+                        공항 직원이 건넨 분리 단서를 읽고 협력하여 정확한 캐리어를 찾아내는 실전 읽기 학습
+                    </p>
+                    <div class="feature-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div>
+                                <strong>단서 획득 및 공유</strong>
+                                <p>플레이어 1·2가 각각 색상/심볼 단서를 받아 서로 공유 (예: P1=녹색 캐리어, P2=개구리 스티커)</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div>
+                                <strong>단어장 학습</strong>
+                                <p>단서의 단어 클릭 시 뜻·발음·영어 번역·예시 문장이 표시되어 이해 보조</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div>
+                                <strong>협동 미션 수행</strong>
+                                <p>P1은 컨베이어 벨트 제어, P2는 그랩건으로 정확한 캐리어 회수</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div>
+                                <strong>학습 피드백</strong>
+                                <p>성공/실패 후 주요 단어(색·동물·형용 표현)에 대한 미니 학습 팝업 제공</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <h3>👂 안내 방송 기반 상황 학습</h3>
+                    <p style="font-size: 1.1em; margin-bottom: 30px;">
+                        실제 공항 안내 방송을 듣고 협력하여 목적지를 찾아가는 실전 듣기 학습
+                    </p>
+                    <div class="feature-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div>
+                                <strong>분할 정보 청취</strong>
+                                <p>P1은 장소 정보, P2는 행동·지시 정보를 각각 다른 방송으로 청취</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div>
+                                <strong>정보 통합 및 협의</strong>
+                                <p>제한 시간 내에 Where(장소) + What(행동)을 합쳐 최종 목적지 결정</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div>
+                                <strong>실시간 내비게이션</strong>
+                                <p>안내도·미니맵 참고하여 정확한 위치로 이동, 오류 시 힌트 제공</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div>
+                                <strong>자막 및 발음 보조</strong>
+                                <p>방송 내용의 핵심 단어에 한글·영문·발음기호 자막 제공</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <h3>✍️ 입국 심사 질의서 작성</h3>
+                    <p style="font-size: 1.1em; margin-bottom: 30px;">
+                        실제 입국카드 형식으로 한국어 쓰기를 연습하는 OCR 기반 학습
+                    </p>
+                    <div class="feature-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div>
+                                <strong>질의서 이해</strong>
+                                <p>입국 목적·체류 기간·숙소 등 각 항목 클릭 시 뜻·발음·예시 문장 표시</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div>
+                                <strong>한글 필기 연습</strong>
+                                <p>격자 기반 필기 UI로 정확한 한글 표기 연습 및 OCR 인식</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div>
+                                <strong>실시간 교정</strong>
+                                <p>오타·부정확한 서술은 붉은색 강조와 AI 교정 팝업으로 즉각 피드백</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div>
+                                <strong>패턴 학습</strong>
+                                <p>성공 후 질의서 항목의 주요 표현·패턴 정리 학습</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <h3>🗣️ AI 심사관과의 실전 대화</h3>
+                    <p style="font-size: 1.1em; margin-bottom: 30px;">
+                        STT·TTS 기반 음성 인식으로 발음 교정 및 실시간 대화 학습
+                    </p>
+                    <div class="feature-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div>
+                                <strong>LLM 기반 인터뷰 생성</strong>
+                                <p>AI가 개인 맞춤형 질문을 생성하여 실제 심사관처럼 질의</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div>
+                                <strong>협동 발화 시스템</strong>
+                                <p>심사관이 특정 플레이어를 지목, 팀은 귓속말로 협력하여 답변 준비</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div>
+                                <strong>발음·문법 분석</strong>
+                                <p>STT로 발화 인식 → LLM이 발음·문장 구조·어휘 오류 식별 및 교정</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div>
+                                <strong>재발화 기회</strong>
+                                <p>오류 탐지 시 교정 지시 제공, 개선 여부가 점수에 반영</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-item">
+                    <h3>🎮 여권 기반 게임화 시스템</h3>
+                    <p style="font-size: 1.1em; margin-bottom: 30px;">
+                        진행도 관리와 성취 시스템으로 지속적인 학습 동기 부여
+                    </p>
+                    <div class="feature-steps">
+                        <div class="step">
+                            <div class="step-number">🛂</div>
+                            <div>
+                                <strong>출입국 스탬프 시스템</strong>
+                                <p>로그인 시 출국 도장, 학습 미션 성공 시 입국 도장 지급으로 실제 여권처럼 기록</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">📊</div>
+                            <div>
+                                <strong>성적표 및 레벨 시스템</strong>
+                                <p>각 미션을 F~S+로 평가, 상승형 기록만 반영하여 지속적 성장 유도</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">🏆</div>
+                            <div>
+                                <strong>누적 보상 및 업적</strong>
+                                <p>도장 누적에 따른 주간·월간 보상, 경험치를 통한 장기 학습 지속성 강화</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">📖</div>
+                            <div>
+                                <strong>학습 이력 관리</strong>
+                                <p>여권에서 모든 학습 기록 확인 가능, 개인 성장 추적</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="tech-stack">
+        <div class="container">
+            <h2 style="color: white;">기술 스택 Technology Stack</h2>
+            <p class="section-subtitle" style="color: rgba(255,255,255,0.9);">
+                언리얼 엔진 5와 AI의 완벽한 융합
+            </p>
+            <div class="tech-grid">
+                <div class="tech-card">
+                    <h3>🎮 언리얼 엔진 (UE5)</h3>
+                    <ul>
+                        <li>입국장 3D 환경 구성</li>
+                        <li>플레이어 캐릭터 및 NPC 시스템</li>
+                        <li>인터랙션 시스템 (문/패널/줄서기/대화)</li>
+                        <li>멀티플레이 룸 생성·참여 시스템</li>
+                        <li>UI/UX 구성 (자막/단어장/입력창/보상)</li>
+                        <li>학습 상태 동기화 관리</li>
+                    </ul>
+                </div>
+                <div class="tech-card">
+                    <h3>🤖 AI 서버</h3>
+                    <ul>
+                        <li>STT (Speech-to-Text) 음성 인식</li>
+                        <li>TTS (Text-to-Speech) 음성 생성</li>
+                        <li>OCR 이미지 텍스트 인식</li>
+                        <li>LLM 문법·발음 교정 및 피드백</li>
+                        <li>번역·훈독 (한글→영문→발음기호)</li>
+                        <li>맞춤형 인터뷰 질문 생성</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-top: 50px; text-align: center; font-size: 1.1em; opacity: 0.9;">
+                <p>📡 <strong>실시간 데이터 흐름:</strong> UE5 → API 서버 → OCR/STT/TTS/LLM → 피

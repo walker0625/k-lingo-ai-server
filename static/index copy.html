@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K Lingo - 게임으로 배우는 한국어</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: float 20s linear infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .klingo_title{
+            display: flex;
+            img{
+                width: 60px;
+                height: 64px;
+            }
+        }
+        h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tagline {
+            font-size: 1.5em;
+            margin-bottom: 30px;
+            opacity: 0.95;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 18px 40px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            font-weight: bold;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .features {
+            padding: 80px 20px;
+            background: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 60px;
+            color: #667eea;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .levels {
+            padding: 80px 20px;
+            background: white;
+        }
+
+        .level-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .level-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .level-card:nth-child(2) {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .level-card:nth-child(3) {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .level-card:hover {
+            transform: scale(1.05);
+        }
+
+        .level-card h3 {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            padding: 80px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .stat-item h3 {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .footer {
+            background: #2d3748;
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+
+            .tagline {
+                font-size: 1.2em;
+            }
+
+            h2 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <div class="hero-content">
+            <h1>🦉 K Lingo</h1>
+            <p class="tagline">게임으로 배우는 재미있는 한국어<br>Learn Korean Through Interactive Games</p>
+            <a href="#features" class="cta-button">지금 시작하기 Start Now</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <h2>왜 K Lingo인가요? Why K Lingo?</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>게임화된 학습</h3>
+                    <p>지루한 암기는 그만! 미니게임과 퀴즈를 통해 자연스럽게 한국어를 익히세요.<br><br>Gamified Learning: Master Korean naturally through fun mini-games and interactive quizzes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>맞춤형 학습 경로</h3>
+                    <p>초급부터 고급까지, 당신의 레벨에 맞는 맞춤형 커리큘럼을 제공합니다.<br><br>Personalized Path: From beginner to advanced, learn at your own pace with adaptive curriculum.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗣️</div>
+                    <h3>실전 회화 연습</h3>
+                    <p>AI 음성 인식으로 발음을 교정하고 실제 상황에서 사용되는 회화를 연습하세요.<br><br>Speaking Practice: Improve pronunciation with AI voice recognition and real-life scenarios.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3>성취감과 보상</h3>
+                    <p>배지, 레벨업, 리더보드로 학습 동기를 유지하세요.<br><br>Achievements: Stay motivated with badges, level-ups, and leaderboards.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌏</div>
+                    <h3>한국 문화 체험</h3>
+                    <p>언어와 함께 K-pop, K-drama, 한국 음식 등 문화도 배워보세요.<br><br>Cultural Immersion: Explore K-pop, K-drama, Korean cuisine and more.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💡</div>
+                    <h3>언제 어디서나</h3>
+                    <p>모바일, 태블릿, PC에서 자유롭게 학습하세요.<br><br>Learn Anywhere: Access on mobile, tablet, or PC anytime, anywhere.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="levels">
+        <div class="container">
+            <h2>레벨별 학습 과정 Learning Levels</h2>
+            <div class="level-cards">
+                <div class="level-card">
+                    <h3>초급 Beginner</h3>
+                    <p>한글, 기본 인사, 숫자<br>일상 표현 400단어</p>
+                    <p style="margin-top: 15px;">Hangul, Greetings, Numbers<br>400 Essential Words</p>
+                </div>
+                <div class="level-card">
+                    <h3>중급 Intermediate</h3>
+                    <p>문법, 여행 회화, 문화<br>1,500단어 + 표현</p>
+                    <p style="margin-top: 15px;">Grammar, Travel, Culture<br>1,500 Words & Expressions</p>
+                </div>
+                <div class="level-card">
+                    <h3>고급 Advanced</h3>
+                    <p>비즈니스, 뉴스, 문학<br>3,000+ 단어</p>
+                    <p style="margin-top: 15px;">Business, News, Literature<br>3,000+ Vocabulary</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats">
+        <div class="container">
+            <h2>K Lingo와 함께한 성과 Our Impact</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <h3>50K+</h3>
+                    <p>전세계 학습자<br>Global Learners</p>
+                </div>
+                <div class="stat-item">
+                    <h3>1M+</h3>
+                    <p>완료된 레슨<br>Lessons Completed</p>
+                </div>
+                <div class="stat-item">
+                    <h3>4.8★</h3>
+                    <p>평균 평점<br>Average Rating</p>
+                </div>
+                <div class="stat-item">
+                    <h3>95%</h3>
+                    <p>학습 만족도<br>Satisfaction Rate</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="footer">
+        <div class="container">
+            <h2 style="color: white; margin-bottom: 20px;">지금 바로 시작하세요! Start Your Journey Today!</h2>
+            <a href="#" class="cta-button" style="margin: 20px 0; display: inline-block;">무료로 시작하기 Start Free</a>
+            <p style="margin-top: 30px; opacity: 0.8;">© 2025 K Lingo. All rights reserved.<br>
+            <a href="#">이용약관</a> | <a href="#">개인정보처리방침</a> | <a href="#">문의하기</a></p>
+        </div>
+    </section>
+</body>
+</html>

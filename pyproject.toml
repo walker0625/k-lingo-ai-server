@@ -1,0 +1,26 @@
+[project]
+name = "k-lingo-ai-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.121.2",
+    "jupyter>=1.1.1",
+    "langchain>=1.0.7",
+    "langchain-experimental>=0.4.0",
+    "langchain-google-genai>=3.0.3",
+    "langchain-huggingface>=1.0.1",
+    "langchain-mcp-adapters>=0.1.13",
+    "langchain-openai>=1.0.3",
+    "langchain-tavily>=0.2.13",
+    "langgraph>=1.0.3",
+    "ollama>=0.6.1",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.2.1",
+    "ragas>=0.3.9",
+    "rank-bm25>=0.2.2",
+    "scikit-learn>=1.7.2",
+    "sentence-transformers>=5.1.2",
+    "transformers>=4.57.1",
+]
