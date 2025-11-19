@@ -15,6 +15,7 @@ from sqlmodel import SQLModel, create_engine
 ## Router
 from api.general.user import router as user_router
 from api.general.item import router as item_router
+from api.general.upload import router as upload_router
 
 ## 로깅 설정 적용 및 로거 생성
 setup_logging()
@@ -55,6 +56,7 @@ def home():
 logger.info('load routers')
 app.include_router(user_router, prefix="/users", tags=["user"])
 app.include_router(item_router, prefix="/items", tags=["item"])
+app.include_router(upload_router, prefix="/files", tags=["files"])
 
 logger.info('static folder')
 os.makedirs("static", exist_ok=True)
