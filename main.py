@@ -17,6 +17,8 @@ from api.general.user import router as user_router
 from api.general.item import router as item_router
 from api.chat.chat_router import router as chat_router
 
+from api.edu.speaking.speaking_router import router as speaking_router
+
 ## 로깅 설정 적용 및 로거 생성
 setup_logging()
 logger = logging.getLogger("app")
@@ -56,7 +58,8 @@ def home():
 logger.info('load routers')
 app.include_router(user_router, prefix="/users", tags=["user"])
 app.include_router(item_router, prefix="/items", tags=["item"])
-app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(chat_router, prefix="/chats", tags=["chat"])
+app.include_router(speaking_router, prefix="/speakings", tags=["speaking"])
 
 logger.info('static folder')
 os.makedirs("static", exist_ok=True)
