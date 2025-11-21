@@ -92,9 +92,15 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     try:
         ## skip log api call
+        skip_body_url = [
+            ':8104/files', ':8104/speaking', ':8104/write'
+        ]
         if not str(request.url).endswith(".log"):
             body = await request.body()
-            file_logger.info(f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}")
+            if any([skip_url in str(request.url) for skip_url in skip_body_url]):
+                file_logger.info(f"Request: {request.method} {request.url} body={'multipark/form-data' if body else None}")
+            else:
+                file_logger.info(f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}")
 
         response = await call_next(request)
 
