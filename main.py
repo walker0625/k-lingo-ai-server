@@ -22,6 +22,8 @@ from api.general.upload import router as upload_router
 from api.chat.chat_router import router as chat_router
 from api.edu import router as edu_router
 
+from api.edu.speaking.speaking_router import router as speaking_router
+
 ## 로깅 설정 적용 및 로거 생성
 setup_logging()
 logger = logging.getLogger("app")
@@ -69,6 +71,9 @@ app.include_router(item_router, prefix="/items", tags=["item"])
 app.include_router(upload_router, prefix="/files", tags=["files"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
 app.include_router(edu_router, prefix="/edu", tags=["edu"])
+app.include_router(chat_router, prefix="/chats", tags=["chat"])
+app.include_router(speaking_router, prefix="/speakings", tags=["speaking"])
+
 
 logger.info("static folder")
 os.makedirs("static", exist_ok=True)
