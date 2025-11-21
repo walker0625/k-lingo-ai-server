@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+## static folder
+static/audios/
+static/images/
+static/input/
+static/output/
