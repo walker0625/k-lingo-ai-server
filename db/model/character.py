@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime
 from typing import Optional
+from enum import Enum
 from pydantic import BaseModel
 from sqlmodel import Field, SQLModel, UniqueConstraint, Session, select, Relationship
-from enum import Enum
 
 ## logger
 logger = logging.getLogger("app")
@@ -39,5 +39,3 @@ class CharacterResponse(BaseModel):
     idx: int
     name: str
     desc: str
-
-

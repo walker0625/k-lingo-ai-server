@@ -21,8 +21,10 @@ from api.general.user import router as user_router
 # from api.general.item import router as item_router
 from api.general.character import router as character_router
 from api.general.user_store import router as user_store_router
+from api.general.scenario import router as scenario_router
 from api.general.upload import router as upload_router
 from api.general.retrieve import router as retrieve_router
+from api.general.logviewer import router as log_router
 ## file logger
 from loguru import logger as file_logger
 
@@ -75,8 +77,10 @@ file_logger.add(
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     try:
-        body = await request.body()
-        file_logger.info(f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}")
+        ## skip log api call
+        if not str(request.url).endswith(".log"):
+            body = await request.body()
+            file_logger.info(f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}")
 
         response = await call_next(request)
 
@@ -99,8 +103,10 @@ logger.info('load routers')
 app.include_router(user_router, prefix="/users", tags=["user"])
 app.include_router(character_router, prefix="/characters", tags=["character"])
 app.include_router(user_store_router, prefix="/store", tags=["store"])
+app.include_router(scenario_router, prefix="/scenario", tags=["scenario"])
 app.include_router(upload_router, prefix="/files", tags=["files"])
 app.include_router(retrieve_router, prefix="/vector", tags=["vector"])
+app.include_router(log_router, prefix="/logs", tags=["logs"])
 
 logger.info('static folder')
 os.makedirs("static", exist_ok=True)
