@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+uv.lock
 ## log folder
 logs/
 ## static folder
