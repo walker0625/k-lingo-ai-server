@@ -39,4 +39,7 @@ dependencies = [
     "uvicorn>=0.38.0",
     "paddleocr>=3.3.2",
     "paddlepaddle>=3.2.2",
+    "pymilvus>=2.6.3",
+    "loguru>=0.7.3",
 ]
+
