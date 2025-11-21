@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+## log folder
+logs/
 ## static folder
 static/audios/
 static/images/

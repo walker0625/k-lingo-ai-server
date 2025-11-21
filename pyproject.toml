@@ -27,4 +27,6 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "sentence-transformers>=5.1.2",
     "transformers>=4.57.1",
+    "pymilvus>=2.6.3",
+    "loguru>=0.7.3",
 ]

@@ -6,7 +6,16 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
 from sqlmodel import Field, SQLModel, create_engine, Session, select
 from jose import JWTError, jwt
-from db.model.user import User, UserResponse, Token, TokenData
+from db.model.user import User, TokenData #UserResponse, Token, 
+# from db.model.character import Character
+# from db.model.coin import Coin
+# from db.model.equip import Equip
+# from db.model.character import Character
+# from db.model.store import Store
+# from db.model.transaction import Transaction
+# from db.model.user_store import UserStore
+
+
 
 ## logger
 logger = logging.getLogger("app")
@@ -60,7 +69,7 @@ def get_user_by_username(session: Session, username: str) -> Optional[User]:
     return session.exec(statement).first()
 def authenticate_user(session: Session, username: str, password: str) -> Optional[User]:
     user = get_user_by_username(session, username)
-    if not user or not verify_password(password, user.hashed_password):
+    if not user or not verify_password(password, user.password):
         return None
     return user
 async def get_current_user(

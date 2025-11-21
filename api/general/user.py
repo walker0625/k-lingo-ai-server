@@ -31,8 +31,8 @@ def register(user: UserCreate, session: SessionDep):
     hashed_password = get_password_hash(user.password)
     db_user = User(
         username=user.username,
-        email=user.email,
-        hashed_password=hashed_password
+        fullname=user.fullname,
+        password=hashed_password
     )
     session.add(db_user)
     session.commit()
@@ -63,11 +63,12 @@ def read_users_me(
 ):
     return current_user
 
-@router.get("/protected")
+@router.get("/host")
 def protected_route(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
+    ## how to check host user.
     return {
-        "message": f"Hello {current_user.username}! This is a protected route.",
+        "message": f"Hello host player, {current_user.username}!",
         "user_id": current_user.id
     }
