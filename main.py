@@ -1,5 +1,6 @@
 import os, logging
 from dotenv import load_dotenv
+
 ## 설정 파일
 load_dotenv()
 import uvicorn
@@ -9,18 +10,22 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+
 ## DB Session
-from db.session import create_db_and_tables #,engine
+from db.session import create_db_and_tables  # ,engine
 from sqlmodel import SQLModel, create_engine
+
 ## Router
 from api.general.user import router as user_router
 from api.general.item import router as item_router
 from api.general.upload import router as upload_router
 from api.chat.chat_router import router as chat_router
+from api.edu import router as edu_router
 
 ## 로깅 설정 적용 및 로거 생성
 setup_logging()
 logger = logging.getLogger("app")
+
 
 # lifespan 정의
 @asynccontextmanager
@@ -41,8 +46,9 @@ async def lifespan(app: FastAPI):
     engine.dispose()
     logger.info("LIFESPAN END")
 
+
 logger.info("start k-lingo api")
-app = FastAPI(title="K Lingo API",lifespan=lifespan)
+app = FastAPI(title="K Lingo API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,19 +57,23 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+
 @app.get("/")
 def home():
     return RedirectResponse(url="/index.html")
-logger.info('load routers')
+
+
+logger.info("load routers")
 app.include_router(user_router, prefix="/users", tags=["user"])
 app.include_router(item_router, prefix="/items", tags=["item"])
 app.include_router(upload_router, prefix="/files", tags=["files"])
 app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(edu_router, prefix="/edu", tags=["edu"])
 
-logger.info('static folder')
+logger.info("static folder")
 os.makedirs("static", exist_ok=True)
 app.mount("/", StaticFiles(directory="static"), name="static")
-logger.info('ready to service[port 8104]')
+logger.info("ready to service[port 8104]")
 if __name__ == "__main__":
     # Render는 PORT 환경변수를 제공
     port = int(os.environ.get("PORT", 8104))
