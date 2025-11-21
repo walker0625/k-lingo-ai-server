@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from .edu_service import EduService
-from .dto.edu_dto import (
+from api.write.write_service import WriteService
+from api.write.dto.write_dto import (
     OCRResponse,
     ImmigrationFormValidation,
 )
@@ -8,7 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-edu_service = EduService()
+write_service = WriteService()
 
 
 @router.post("/ocr/extract", response_model=OCRResponse)
@@ -19,7 +19,7 @@ async def extract_text(file: UploadFile = File(...)):
                 status_code=400, detail="이미지 파일만 업로드 가능합니다"
             )
 
-        result = await edu_service.extract_text_from_image(file)
+        result = await write_service.extract_text_from_image(file)
         return result
     except Exception as e:
         logger.error(f"OCR 처리 실패: {e}")
@@ -34,7 +34,7 @@ async def validate_immigration_form(file: UploadFile = File(...)):
                 status_code=400, detail="이미지 파일만 업로드 가능합니다"
             )
 
-        result = await edu_service.validate_immigration_form(file)
+        result = await write_service.validate_immigration_form(file)
         return result
     except Exception as e:
         logger.error(f"입국 심사서 검증 실패: {e}")

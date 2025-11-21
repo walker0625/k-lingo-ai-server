@@ -3,11 +3,11 @@ from typing import List, Optional
 
 
 # 교육 관련 질문 DTO
-class EduQuestionRequest(BaseModel):
+class WriteQuestionRequest(BaseModel):
     message: str
 
 
-class EduQuestionResponse(BaseModel):
+class WriteQuestionResponse(BaseModel):
     answer: str
 
 

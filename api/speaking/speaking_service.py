@@ -5,7 +5,7 @@ import io
 import soundfile as sf
 
 from api.chat.chat_service import ChatService
-from api.edu.speaking.dto.speaking_dto import SpeakingResponse
+from api.speaking.dto.speaking_dto import SpeakingResponse
 
 logger = logging.getLogger(__name__)
 

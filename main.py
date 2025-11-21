@@ -20,9 +20,8 @@ from api.general.user import router as user_router
 from api.general.item import router as item_router
 from api.general.upload import router as upload_router
 from api.chat.chat_router import router as chat_router
-from api.edu import router as edu_router
-
-from api.edu.speaking.speaking_router import router as speaking_router
+from api.write.write_routers import router as write_router
+from api.speaking.speaking_router import router as speaking_router
 
 ## 로깅 설정 적용 및 로거 생성
 setup_logging()
@@ -43,7 +42,7 @@ async def lifespan(app: FastAPI):
         logger.info("DATABASE Table initialization start")
         SQLModel.metadata.drop_all(engine)
         create_db_and_tables(engine)
-        logger.info("ATABASE Table initialization end")
+        logger.info("DATABASE Table initialization end")
     yield
     engine.dispose()
     logger.info("LIFESPAN END")
@@ -69,9 +68,8 @@ logger.info("load routers")
 app.include_router(user_router, prefix="/users", tags=["user"])
 app.include_router(item_router, prefix="/items", tags=["item"])
 app.include_router(upload_router, prefix="/files", tags=["files"])
-app.include_router(chat_router, prefix="/chat", tags=["chat"])
-app.include_router(edu_router, prefix="/edu", tags=["edu"])
 app.include_router(chat_router, prefix="/chats", tags=["chat"])
+app.include_router(write_router, prefix="/writes", tags=["write"])
 app.include_router(speaking_router, prefix="/speakings", tags=["speaking"])
 
 

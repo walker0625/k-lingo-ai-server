@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException, status, File, UploadFile
 
 from db.session import  SessionDep
 
-from api.edu.speaking.speaking_service import SpeakingService
-from api.edu.speaking.speaking_service import SpeakingResponse
+from api.speaking.dto.speaking_dto import SpeakingResponse
+from api.speaking.speaking_service import SpeakingService
 
 logger = logging.getLogger("__name__")
 router = APIRouter()

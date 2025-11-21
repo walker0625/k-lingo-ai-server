@@ -9,7 +9,7 @@ import ollama
 logger = logging.getLogger(__name__)
 
 
-class EduService:
+class WriteService:
     def __init__(self):
         try:
             logger.info("PaddleOCR 모델 로딩 중...")

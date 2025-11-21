@@ -17,7 +17,6 @@ dependencies = [
     "jose>=1.0.0",
     "jupyter>=1.1.1",
     "langchain>=1.0.7",
-    "langchain-experimental>=0.4.0",
     "langchain-google-genai>=3.0.3",
     "langchain-huggingface>=1.0.1",
     "langchain-mcp-adapters>=0.1.13",
@@ -38,4 +37,6 @@ dependencies = [
     "sqlmodel>=0.0.27",
     "transformers>=4.57.1",
     "uvicorn>=0.38.0",
+    "paddleocr>=3.3.2",
+    "paddlepaddle>=3.2.2",
 ]
