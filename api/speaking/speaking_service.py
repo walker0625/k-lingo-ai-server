@@ -1,8 +1,14 @@
-from transformers import pipeline
 import logging
-from fastapi import UploadFile, HTTPException
+
 import io
+import os
+import uuid
+import shutil
 import soundfile as sf
+
+from common.path import INPUT_DIR
+from transformers import pipeline
+from fastapi import UploadFile, HTTPException
 
 from api.chat.chat_service import ChatService
 from api.speaking.dto.speaking_dto import SpeakingResponse
@@ -16,16 +22,18 @@ class SpeakingService:
     
     def listen_speaking_and_answer(self, audio_file: UploadFile) -> SpeakingResponse:
         
-        # WAV 파일 체크
         if audio_file.content_type != "audio/wav":
             raise HTTPException(400, "WAV 파일만 지원합니다")
         
-        # 메모리에서 직접 읽기
-        audio_bytes = audio_file.file.read()
+        file_name = 'speaking_' + str(uuid.uuid4()) + '.wav'
+        file_path = os.path.join(INPUT_DIR, file_name)
         
         try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(audio_file.file, buffer)
+            
             # soundfile로 오디오 로드
-            audio_array, sampling_rate = sf.read(io.BytesIO(audio_bytes))
+            audio_array, sampling_rate = sf.read(file_path)
             
             # 오디오 시간 계산
             audio_duration = len(audio_array) / sampling_rate
