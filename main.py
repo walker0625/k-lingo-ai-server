@@ -1,3 +1,23 @@
+# ===== 2025.11.24 paddlex 호환 패치 (이건 기능이라 둠) =====
+import sys
+from types import ModuleType
+import langchain
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+docstore_module = ModuleType("langchain.docstore")
+document_module = ModuleType("langchain.docstore.document")
+document_module.Document = Document
+docstore_module.document = document_module
+text_splitter_module = ModuleType("langchain.text_splitter")
+text_splitter_module.RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter
+sys.modules["langchain.docstore"] = docstore_module
+sys.modules["langchain.docstore.document"] = document_module
+sys.modules["langchain.text_splitter"] = text_splitter_module
+langchain.docstore = docstore_module
+langchain.text_splitter = text_splitter_module
+# ===== 패치 끝 =====
+
 import os, logging, time, json
 from dotenv import load_dotenv
 

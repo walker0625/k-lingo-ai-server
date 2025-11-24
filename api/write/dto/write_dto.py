@@ -1,23 +1,17 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 
+# 1. 단순 OCR 응답용
+class OCRResponse(BaseModel):
+    text: str 
 
-# 교육 관련 질문 DTO
-class WriteQuestionRequest(BaseModel):
-    message: str
-
-
-class WriteQuestionResponse(BaseModel):
+# 2. 입국 심사서 검증 항목 (질문-답변)
+class ValidationItem(BaseModel):
+    question: str
     answer: str
 
-
-# OCR 관련 DTO
-class OCRResponse(BaseModel):
-    success: bool
-    extracted_text: str
-
-
+# 3. 입국 심사서 전체 검증 응답
 class ImmigrationFormValidation(BaseModel):
-    success: bool
-    extracted_text: str
-    validations: List[dict]
+    mode: str                         
+    text: str                         
+    validations: List[ValidationItem]

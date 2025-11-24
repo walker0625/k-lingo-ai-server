@@ -1,41 +1,43 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from api.write.write_service import WriteService
-from api.write.dto.write_dto import (
-    OCRResponse,
-    ImmigrationFormValidation,
-)
-import logging
+from enum import Enum
+from .dto.write_dto import ImmigrationFormValidation, OCRResponse
+from .write_service import WriteService
 
-logger = logging.getLogger(__name__)
-router = APIRouter()
-write_service = WriteService()
+router = APIRouter(tags=["write"])
+service = WriteService()
+
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"}
+
+
+class OCRType(str, Enum):
+    PADDLE = "paddle"
+    NAVER = "naver"
+
+
+def validate_image(file: UploadFile):
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="지원하지 않는 파일입니다.")
 
 
 @router.post("/ocr/extract", response_model=OCRResponse)
-async def extract_text(file: UploadFile = File(...)):
+async def extract_text_only(
+    file: UploadFile = File(...), mode: OCRType = OCRType.PADDLE
+):
+    validate_image(file)
     try:
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=400, detail="이미지 파일만 업로드 가능합니다"
-            )
-
-        result = await write_service.extract_text_from_image(file)
-        return result
-    except Exception as e:
-        logger.error(f"OCR 처리 실패: {e}")
-        raise HTTPException(status_code=500, detail="OCR 처리 중 오류가 발생했습니다")
+        result = await service.process_immigration(file, mode.value)
+        return {"text": result["text"]}
+    except Exception:
+        raise HTTPException(status_code=500, detail="OCR 추출 실패")
 
 
-@router.post("/immigration-form/validate", response_model=ImmigrationFormValidation)
-async def validate_immigration_form(file: UploadFile = File(...)):
+@router.post("/immigration/validate", response_model=ImmigrationFormValidation)
+async def validate_immigration_form(
+    file: UploadFile = File(...), mode: OCRType = OCRType.PADDLE
+):
+    validate_image(file)
     try:
-        if not file.content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=400, detail="이미지 파일만 업로드 가능합니다"
-            )
-
-        result = await write_service.validate_immigration_form(file)
-        return result
+        return await service.process_immigration(file, mode.value)
     except Exception as e:
-        logger.error(f"입국 심사서 검증 실패: {e}")
-        raise HTTPException(status_code=500, detail="검증 중 오류가 발생했습니다")
+        raise HTTPException(status_code=500, detail=f"검증 오류: {str(e)}")
