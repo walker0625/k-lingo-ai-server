@@ -28,8 +28,9 @@ async def extract_text_only(
     try:
         result = await service.process_immigration(file, mode.value)
         return {"text": result["text"]}
-    except Exception:
-        raise HTTPException(status_code=500, detail="OCR 추출 실패")
+    except Exception as e:
+        print(f"[OCR Error] {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OCR 에러: {str(e)}")
 
 
 @router.post("/immigration/validate", response_model=ImmigrationFormValidation)
@@ -40,4 +41,5 @@ async def validate_immigration_form(
     try:
         return await service.process_immigration(file, mode.value)
     except Exception as e:
+        print(f"[Validation Error] {str(e)}")
         raise HTTPException(status_code=500, detail=f"검증 오류: {str(e)}")
