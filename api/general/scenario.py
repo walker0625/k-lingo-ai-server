@@ -43,7 +43,7 @@ def get_stages(session : SessionDep):
 @router.get("/{scenario_id}/{stage_id}/{level}", response_model=QuestReadOrListenInfo)
 def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     """
-        시나리오 ID, 스테이지 ID, 레벨로 스테이지 퀘스트 정보 생성
+        시나리오 ID, 스테이지 ID, 레벨로 스테이지 퀘스트 정보 가져오기
     """
     # scenario = session.get(Scenario, scenario_id)
     # if not scenario:
@@ -72,6 +72,27 @@ def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     return quest_info
 
 # Routes
-@router.get("/{scenario_title}/{stage_title}/{level}")
-def get_stage_by_title(scenario_title:str, stage_title:str, level:int, session : SessionDep):
-    return {"result":"ok"}
+@router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestReadOrListenInfo)
+def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : SessionDep):
+    """
+        시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
+    """
+    _stage_type = StageType(stage_type)
+    statement = select(Stage).where(
+        Stage.scenario_id == scenario_id,
+        Stage.type_code == _stage_type
+    )
+    stages =  session.exec(statement).all()
+    if not stages and len(stages) <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stage not found"
+        )
+    quest = stages[0].quest
+    quest_info = gen_read_or_listen_quest(
+        _stage_type,
+        [ReadingQuest(**q) for q in quest] ## 타입에 따른 바인딩
+            if _stage_type == StageType.READING
+            else [ListeningQuest(**q) for q in quest],
+        QuestLevel(level))
+    return quest_info
