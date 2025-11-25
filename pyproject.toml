@@ -34,4 +34,7 @@ dependencies = [
     "paddlepaddle>=3.2.2",
     "pymilvus>=2.6.3",
     "loguru>=0.7.3",
+    "gtts>=2.5.4",
+    "elevenlabs>=2.24.0",
 ]
+
