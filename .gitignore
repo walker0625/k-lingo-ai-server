@@ -5,7 +5,6 @@ build/
 dist/
 wheels/
 *.egg-info
-*.ipynb
 # Virtual environments
 .venv
 .env
@@ -23,5 +22,7 @@ volumes/
 docker-compose.yml
 ## masterdata
 masterdata/
+## ipynb
+ipynb/
 ## test main
 apptest.py

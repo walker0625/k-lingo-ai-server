@@ -4,9 +4,11 @@ import random
 from pydantic import BaseModel
 from api.general.scenario import ReadingQuest,ListeningQuest, QuestLevel, StageType
 from common.ko_util import korean_to_english_pronunciation
-
+from api.listening.listening_service import ListeningService
 # logger
 logger = logging.getLogger("app")
+## tts
+tts = ListeningService()
 
 class WordData(BaseModel):
     kor: str
@@ -18,15 +20,16 @@ class TargetItem(BaseModel):
 class TargetData(BaseModel):
     word1:TargetItem
     word2:TargetItem
-class QuestInfo(BaseModel):
+class QuestBase(BaseModel):
     index:int
     dificulity:QuestLevel
-class QuestReadOrListenInfo(QuestInfo):
+class QuestReadOrListenInfo(QuestBase):
     target_data: list[TargetData]
     correct_answer_index: int
     word_data1: WordData
     word_data2: WordData
     full_data: WordData
+    voice_data: str | None = None
 
 def quest_words(quests:list[ReadingQuest | ListeningQuest],_type:str,level:QuestLevel):
     words = []
@@ -37,14 +40,29 @@ def quest_words(quests:list[ReadingQuest | ListeningQuest],_type:str,level:Quest
 ### 읽기 시나리오 생성용
 def ko_to_en(ko:str):
     system_prompt = """
-        당신은 영어 번역가 입니다.
-        한글 문장을 영문으로 번역하여 해당 영문만 알려주세요.
+        당신은 **영어** 번역 전문가 입니다.
+        한글 문장을 영문으로 번역하여 **번역된 영문**만 알려주세요.
+        다른 설명이나 인사는 **절대로** 포함하지 마세요.
     """
+    system_prompt = """당신은 한국어 문장을 **영어**로 번역하는 전문 영어 번역가입니다. 
+            번역할 한국어 문장을 입력받으면, 해당 문장의 **영어 번역 결과**만 출력하고
+            다른 설명이나 추가 문장은 절대 포함하지 마세요."""
     user_prompt = "한글 문장을 영문으로 번역해줘 : {}"
+
+    ko_sample1 = "하늘이 매우 파랗습니다."
+    en_answer1 = "The sky is very blue."
+    ko_sample2 = "나는 사과를 먹었다."
+    en_answer2 = "He ate a apple."
     response = ollama.chat(
         model="hf.co/LGAI-EXAONE/EXAONE-4.0-1.2B-GGUF:Q4_K_M",
         messages=[
             {'role': 'system', 'content': system_prompt},
+            ## 예시
+            {'role': 'user', 'content': user_prompt.format(ko_sample1)},
+            {'role': 'assistant', 'content': en_answer1},
+            {'role': 'user', 'content': user_prompt.format(ko_sample2)},
+            {'role': 'assistant', 'content': en_answer2},
+            ## 사용자 정보
             {'role': 'user', 'content': user_prompt.format(ko)}
         ]
     )
@@ -106,5 +124,6 @@ def gen_read_or_listen_quest(stage_type:StageType, quests:list[BaseModel],level:
             kor = full_data,
             eng = ko_to_en(full_data),
             pronunciation=korean_to_english_pronunciation(full_data)
-        )
+        ),
+        voice_data = None if stage_type == StageType.READING else tts.make_audio_base64_from_text(full_data).audio_base64
     )
