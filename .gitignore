@@ -17,3 +17,7 @@ static/audios/
 static/images/
 static/input/
 static/output/
+## masterdata
+masterdata/
+## test main
+apptest.py

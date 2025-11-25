@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시나리오 관리 시스템</title>
+    <link rel="stylesheet" href="web/scenario.css">
+</head>
+<body>
+    <div class="header">
+        <h1>📚 시나리오 관리 시스템</h1>
+        <p>교육 시나리오 및 스테이지 통합 조회</p>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <div class="number" id="totalScenarios">0</div>
+                <div class="label">총 시나리오</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="number" id="totalStages">0</div>
+                <div class="label">총 스테이지</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="number" id="totalQuests">0</div>
+                <div class="label">총 퀘스트</div>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 시나리오 또는 스테이지 제목으로 검색..." onkeyup="filterScenarios()">
+        </div>
+
+        <div id="loadingState" class="loading">
+            <div class="loading-spinner"></div>
+            <p>데이터를 불러오는 중...</p>
+        </div>
+
+        <div id="scenarioList" style="display: none;"></div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <h3>등록된 시나리오가 없습니다</h3>
+        </div>
+    </div>
+
+    <!-- JSON 뷰어 모달 -->
+    <div id="jsonModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="jsonModalTitle">퀘스트 데이터</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button class="copy-btn" onclick="copyJsonToClipboard()">📋 복사</button>
+                    <button class="close-btn" onclick="closeJsonModal()">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <pre class="json-viewer" id="jsonViewer"></pre>
+            </div>
+        </div>
+    </div>
+    <script src="./web/fetchfn.js"></script>
+    <script src="./web/util.js"></script>
+    <script>
+        let allScenarios = [];
+        let currentJsonData = '';
+        let type_code = ['reading','listening','writing','speaking'];
+        // 초기 데이터 로드
+        async function loadData() {
+            try {
+                allScenarios = await fetch_get('/scenario/');
+                document.getElementById('loadingState').style.display = 'none';
+                if (allScenarios.length === 0) {
+                    document.getElementById('emptyState').style.display = 'block';
+                } else {
+                    document.getElementById('scenarioList').style.display = 'block';
+                    renderScenarios();
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('데이터 로드 실패:', error);
+                document.getElementById('loadingState').innerHTML = `
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 60px; height: 60px; color: #dc3545; margin-bottom: 15px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p style="color: #dc3545;">데이터를 불러올 수 없습니다</p>
+                    <button class="btn btn-primary" onclick="loadData()" style="margin-top: 15px;">다시 시도</button>
+                `;
+            }
+        }
+
+        // 통계 업데이트
+        function updateStats() {
+            document.getElementById('totalScenarios').textContent = allScenarios.length;
+            
+            let totalStages = 0;
+            let totalQuests = 0;
+            
+            allScenarios.forEach(scenario => {
+                if (scenario.stages) {
+                    totalStages += scenario.stages.length;
+                    scenario.stages.forEach(stage => {
+                        if (stage.quest && Array.isArray(stage.quest)) {
+                            totalQuests += stage.quest.length;
+                        }
+                    });
+                }
+            });
+            
+            document.getElementById('totalStages').textContent = totalStages;
+            document.getElementById('totalQuests').textContent = totalQuests;
+        }
+
+        // 시나리오 렌더링
+        function renderScenarios() {
+            const container = document.getElementById('scenarioList');
+            container.innerHTML = allScenarios.map((scenario, index) => `
+                <div class="scenario-card" data-scenario-id="${scenario.id}">
+                    <div class="scenario-header" onclick="toggleScenario(${index})">
+                        <div class="scenario-title">
+                            <span class="expand-icon" id="expand-${index}">▼</span>
+                            <h3>${scenario.title}</h3>
+                            <span class="badge badge-${scenario.lang.toLowerCase()}">${scenario.lang}</span>
+                        </div>
+                        <div class="scenario-info">
+                            <span>${scenario.stages?.length || 0}개 스테이지</span>
+                            <span style="opacity: 0.7;">ID: ${scenario.id}</span>
+                        </div>
+                    </div>
+                    <div class="scenario-content" id="content-${index}">
+                        ${scenario.desc ? `<div class="scenario-desc">📝 ${scenario.desc}</div>` : ''}
+                        ${renderStages(scenario.stages, scenario.id)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 스테이지 렌더링
+        function renderStages(stages, scenarioId) {
+            if (!stages || stages.length === 0) {
+                return '<div class="no-stages">등록된 스테이지가 없습니다</div>';
+            }
+            return `
+                <table class="stages-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">ID</th>
+                            <th>제목</th>
+                            <th style="width: 120px;">타입</th>
+                            <th style="width: 140px;">퀘스트</th>
+                            <th style="width: 180px;">생성일</th>
+                            <th style="width: 180px;">작업</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stages.map(stage => `
+                            <tr>
+                                <td>${stage.id}</td>
+                                <td><strong>${stage.title}</strong></td>
+                                <td><span class="badge badge-${type_code[stage.type_code-1]}">${type_code[stage.type_code-1]}</span></td>
+                                <td>
+                                    <span class="quest-count">
+                                        📊 ${stage.quest?.length || 0}개
+                                    </span>
+                                </td>
+                                <td class="stage-date">${formatDate(stage.created_at)}</td>
+                                <td>
+                                    <button class="btn btn-info" onclick='viewQuestJson(${JSON.stringify(stage.quest)}, "${stage.title}")'>
+                                        🔍 퀘스트 보기
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        // 시나리오 토글
+        function toggleScenario(index) {
+            const content = document.getElementById(`content-${index}`);
+            const icon = document.getElementById(`expand-${index}`);
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.add('expanded');
+            }
+        }
+
+        // 퀘스트 JSON 보기
+        function viewQuestJson(questData, stageTitle) {
+            if (!questData || questData.length === 0) {
+                alert('퀘스트 데이터가 없습니다.');
+                return;
+            }
+            document.getElementById('jsonModalTitle').textContent = `${stageTitle} - 퀘스트 데이터`;
+            const formatted = JSON.stringify(questData, null, 2);
+            currentJsonData = formatted;
+            // JSON 구문 강조
+            const highlighted = syntaxHighlight(formatted);
+            document.getElementById('jsonViewer').innerHTML = highlighted;
+            document.getElementById('jsonModal').classList.add('active');
+        }
+        function closeJsonModal() {
+            document.getElementById('jsonModal').classList.remove('active');
+        }
+        // JSON 복사
+        function copyJsonToClipboard() {
+            navigator.clipboard.writeText(currentJsonData).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ 복사됨!';
+                btn.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '#667eea';
+                }, 2000);
+            }).catch(err => {
+                alert('복사에 실패했습니다.');
+            });
+        }
+
+        // 검색 필터
+        function filterScenarios() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('.scenario-card');
+            
+            cards.forEach(card => {
+                const scenarioId = card.dataset.scenarioId;
+                const scenario = allScenarios.find(s => s.id == scenarioId);
+                
+                const scenarioTitle = scenario.title.toLowerCase();
+                const stageTitles = scenario.stages?.map(s => s.title.toLowerCase()).join(' ') || '';
+                
+                if (scenarioTitle.includes(searchTerm) || stageTitles.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // 모달 외부 클릭 시 닫기
+        window.onclick = function(event) {
+            const modal = document.getElementById('jsonModal');
+            if (event.target === modal) {
+                closeJsonModal();
+            }
+        }
+
+        // 초기 로드
+        loadData();
+    </script>
+</body>
+</html>
