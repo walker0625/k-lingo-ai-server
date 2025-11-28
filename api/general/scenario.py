@@ -1,12 +1,12 @@
-import os, logging
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from fastapi import APIRouter, HTTPException, status
+from sqlmodel import select
 from db.session import  SessionDep
-from db.model.scenario import Scenario,ScenarioResponse, Stage, StageType, QuestLevel, ReadingQuest, ListeningQuest
-from api.general.service.scenario_service import QuestReadOrListenInfo, quest_words, gen_read_or_listen_quest
-
+from db.model.scenario import (
+    Scenario,ScenarioResponse, Stage, StageType, QuestLevel, ReadingQuest, ListeningQuest
+)
+from api.general.service.scenario_service import QuestReadOrListenInfo, gen_read_or_listen_quest
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 
@@ -27,7 +27,7 @@ def get_scenarios(session : SessionDep):
             desc = _scenario.desc,
             created_at = _scenario.created_at,
             updated_at = _scenario.updated_at,
-            stages = _scenario.stages
+            stages = list(session.exec(select(Stage).where(Stage.scenario_id == _scenario.id)).all()) #_scenario.stages
         ))
     return results
 

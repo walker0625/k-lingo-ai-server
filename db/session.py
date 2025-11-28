@@ -1,47 +1,23 @@
-import os, logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional, Annotated
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
-from sqlmodel import Field, SQLModel, create_engine, Session, select
+from sqlmodel import Field, Session, select
 from jose import JWTError, jwt
-from db.model.user import User, TokenData #UserResponse, Token, 
-# from db.model.character import Character
-# from db.model.coin import Coin
-# from db.model.equip import Equip
-# from db.model.character import Character
-# from db.model.store import Store
-# from db.model.transaction import Transaction
-# from db.model.user_store import UserStore
-
-
-
+from db.model.user import User, TokenData
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 
-###### Database setup ######
-# move lifespan
-# logger.info("DATABASE SETUP")
-# DATABASE_URL = os.environ["DATABASE_URL"]
-# engine = create_engine(DATABASE_URL, echo=True)
-# Database functions
-def create_db_and_tables(engine):
-    SQLModel.metadata.create_all(engine)
+###### DB Session ######
 def get_session(request: Request):
-    ## use lifespan
     with Session(request.app.state.engine) as session:
-    # with Session() as session:
         yield session
 SessionDep = Annotated[Session, Depends(get_session)]
-# Database table initialize
-# if os.environ["DATABASE_INIT"] == 0:
-#     logger.info("DATABASE Table initialization start")
-#     create_db_and_tables()
-#     logger.info("ATABASE Table initialization end")
 
 ###### JWT setup ######
-logger.info("JWT SETUP")
+logger.info("JWT setup")
 SECRET_KEY = os.environ['SECRET_KEY']
 ALGORITHM = os.environ['ALGORITHM']
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ['ACCESS_TOKEN_EXPIRE_MINUTES'])

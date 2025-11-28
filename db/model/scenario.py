@@ -19,7 +19,7 @@ class LangType(Enum):
     EN = 1
     JP = 2
 
-# Models
+# scenario table
 class Scenario(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     lang_code: LangType
@@ -28,7 +28,7 @@ class Scenario(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     ## 보유한 stage 리스트
-    stages: list["Stage"] = Relationship(back_populates="scenario")
+    # stages: list["Stage"] = Relationship(back_populates="scenario")
 ## 교육 대상자 언어권
 class StageType(Enum):
     READING = 1
@@ -50,7 +50,14 @@ class ListeningQuest(BaseModel):
     quest_level: QuestLevel
     quest_words: list[str]
     quest_codes: list[str]
-    
+class WritingQuest(BaseModel):
+    quest_level: QuestLevel
+    quest_word_ko: str
+    quest_word_en: str
+    quest_question_ko: str
+    quest_question_en: str
+
+## stage table    
 class Stage(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     scenario_id: int = Field(foreign_key="scenario.id")
@@ -61,7 +68,7 @@ class Stage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     ## 연결된 scenario 리스트
-    scenario: "Scenario" = Relationship(back_populates="stages")
+    # scenario: "Scenario" = Relationship(back_populates="stages")
 
 class ScenarioResponse(BaseModel):
     id: int

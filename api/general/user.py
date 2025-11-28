@@ -1,16 +1,13 @@
-import os, logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from typing import Optional, Annotated
-from passlib.context import CryptContext
-from db.model.user import User, UserCreate, UserResponse, Token, TokenData
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
+from typing import Annotated
+from db.model.user import User, UserCreate, UserResponse, Token
 from db.session import  SessionDep, get_user_by_username, get_password_hash
 from db.session import authenticate_user, create_access_token, get_current_active_user
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 

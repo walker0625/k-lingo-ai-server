@@ -1,19 +1,14 @@
-import os, logging
 from datetime import datetime
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Field, SQLModel, create_engine, Session, select
+from sqlmodel import Session, select
 from db.session import  SessionDep, get_session
 from db.model.character import Character
 from db.model.character import CharacterResponse
 from db.model.character import CharacterCreate
-# from db.model.character import create_character_type_idx
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
-
 # Routes
 @router.get("/", response_model=list[CharacterResponse])
 def get_items(name: str,session : SessionDep):
@@ -26,7 +21,7 @@ def add_item(item: CharacterCreate, session: SessionDep):
     """
         Character Type : 1 - AVATAR(외형), 2 -COLOR
     """
-    logging.info(f"********** create character : {item}")
+    logger.info(f"********** create character : {item}")
     statement = select(Character).where(Character.name == item.name and Character.type_code == item.type_code)
     _item = session.exec(statement).first()
     if _item:
@@ -37,7 +32,7 @@ def add_item(item: CharacterCreate, session: SessionDep):
     # Create new item, select max idx
     statement = select(Character).where(Character.type_code == item.type_code)
     results = session.exec(statement).all()
-    logging.info(f"max idx : {results}")
+    logger.info(f"max idx : {results}")
     max_type_idx = max([r.idx for r in results], default=0)
     new_item = Character(
         type_code = item.type_code,

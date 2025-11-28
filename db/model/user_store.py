@@ -14,9 +14,9 @@ class UserCharacter(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     # relation ( → User)
-    user: "User" = Relationship(back_populates="characters")
+    user: "User" = Relationship(back_populates="user_character")
     # relation ( → Character)
-    character: "Character" = Relationship(back_populates="users")
+    character: "Character" = Relationship(back_populates="user_character")
 
 class UserCharacterCreate(BaseModel):
     user_id: int
