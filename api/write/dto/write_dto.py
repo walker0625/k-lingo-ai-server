@@ -1,9 +1,11 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 # 1. 단순 OCR 응답용
 class OCRResponse(BaseModel):
+    filename: str 
     text: str 
+    error: Optional[str] = None
 
 # 2. 입국 심사서 검증 항목 (질문-답변)
 class ValidationItem(BaseModel):
