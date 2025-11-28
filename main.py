@@ -38,10 +38,12 @@ from sqlmodel import SQLModel, create_engine
 ## Milvus Connection
 # from pymilvus import connections
 from db.vectordb import milvus_service
+
 # from db.vector import set_connection
 
 ## Router
 from api.general.user import router as user_router
+
 # from api.general.item import router as item_router
 from api.general.character import router as character_router
 from api.general.user_store import router as user_store_router
@@ -55,6 +57,7 @@ from api.speaking.speaking_router import router as speaking_router
 
 from api.general.retrieve import router as retrieve_router
 from api.general.logviewer import router as log_router
+
 ## file logger
 from loguru import logger as file_logger
 
@@ -106,22 +109,28 @@ file_logger.add(
     "logs/api_{time:YYYY-MM-DD}.log",
     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
     level="INFO",
-    rotation="1 day", retention="7 days", compression="zip"
+    rotation="1 day",
+    retention="7 days",
+    compression="zip",
 )
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     try:
         ## skip log api call
-        skip_body_url = [
-            ':8104/files', ':8104/speaking', ':8104/write'
-        ]
+        skip_body_url = [":8104/files", ":8104/speaking", ":8104/write"]
         if not str(request.url).endswith(".log"):
             body = await request.body()
             if any([skip_url in str(request.url) for skip_url in skip_body_url]):
-                file_logger.info(f"Request: {request.method} {request.url} body={'multipark/form-data' if body else None}")
+                file_logger.info(
+                    f"Request: {request.method} {request.url} body={'multipark/form-data' if body else None}"
+                )
             else:
-                file_logger.info(f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}")
+                file_logger.info(
+                    f"Request: {request.method} {request.url} body={json.dumps(body.decode('utf-8')) if body else None}"
+                )
 
         response = await call_next(request)
 
@@ -136,7 +145,7 @@ async def log_requests(request: Request, call_next):
             f"{request.method} {request.url.path} - 500 - {process_time:.4f}s - Error: {str(e)}"
         )
         raise e
-    
+
 
 @app.get("/")
 def home():
@@ -155,7 +164,6 @@ app.include_router(write_router, prefix="/writes", tags=["write"])
 app.include_router(speaking_router, prefix="/speakings", tags=["speaking"])
 app.include_router(retrieve_router, prefix="/vector", tags=["vector"])
 app.include_router(log_router, prefix="/logs", tags=["logs"])
-
 
 
 logger.info("static folder")
