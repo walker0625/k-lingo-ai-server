@@ -19,7 +19,17 @@ from loguru import logger
 from loguru_config import set_logger, fileloger
 
 ## router
-from api.general.general_router import mount_router
+#from api.general.general_router import mount_router
+
+from api.general.user import router as user_router
+from api.general.character import router as character_router
+from api.general.user_store import router as user_store_router
+from api.general.scenario import router as scenario_router
+from api.general.interview import router as interview_router
+from api.general.logviewer import router as log_router
+from api.general.upload import router as upload_router
+from api.general.retrieve import router as retrieve_router
+
 from api.chat.chat_router import router as chat_router
 from api.listening.listening_router import router as listening_router
 from api.write.write_routers import router as write_router
@@ -49,10 +59,20 @@ async def log_requests(request: Request, call_next):
     return await fileloger(request, call_next)
 
 ## router
+# mount_router(app)
+# speaking_router.py:30 - 듣기 응답 실패: [WinError 127] 지정된 프로시저를  찾을 수 없습니다. 
+# Error loading "C:\walker\code\k-lingo-ai-server\.venv\Lib\site-packages\torch\lib\shm.dll" or one of its dependencies.
 
 ### general_router
-mount_router(app)
+app.include_router(user_router, prefix="/users", tags=["user"])
+app.include_router(character_router, prefix="/character", tags=["character"])
+app.include_router(user_store_router, prefix="/store", tags=["store"])
+app.include_router(scenario_router, prefix="/scenario", tags=["scenario"])
+app.include_router(interview_router, prefix="/interview", tags=["interview"])
+app.include_router(log_router, prefix="/logs", tags=["logs"])
+app.include_router(upload_router, prefix="/upload", tags=["upload"])
 
+### ai_router
 app.include_router(chat_router, prefix="/chats", tags=["chat"])
 app.include_router(listening_router, prefix="/listenings", tags=["listening"])
 app.include_router(write_router, prefix="/writes", tags=["write"])
