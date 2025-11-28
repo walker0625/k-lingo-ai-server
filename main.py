@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 ## 설정 파일
 load_dotenv()
 import uvicorn
-from logging_config import setup_logging
+from ipynb.logging_config import setup_logging
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles

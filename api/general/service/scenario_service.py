@@ -1,12 +1,11 @@
-import logging
 import ollama
 import random
 from pydantic import BaseModel
 from api.general.scenario import ReadingQuest,ListeningQuest, QuestLevel, StageType
 from common.ko_util import korean_to_english_pronunciation
 from api.listening.listening_service import ListeningService
-# logger
-logger = logging.getLogger("app")
+## logger
+from loguru import logger
 ## tts
 tts = ListeningService()
 
@@ -37,7 +36,7 @@ def quest_words(quests:list[ReadingQuest | ListeningQuest],_type:str,level:Quest
         words.extend(word)
     return words
 
-### 읽기 시나리오 생성용
+### 읽기, 듣기 시나리오 생성용
 def ko_to_en(ko:str):
     system_prompt = """
         당신은 **영어** 번역 전문가 입니다.

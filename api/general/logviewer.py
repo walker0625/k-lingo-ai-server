@@ -1,12 +1,8 @@
-import os, logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from pathlib import Path
-# from sqlmodel import Session, select
-# from db.session import  SessionDep
-
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 

@@ -1,12 +1,8 @@
-import os, logging
-from datetime import datetime
-from typing import Optional
 from fastapi import APIRouter, UploadFile, File
 from fastapi.responses import JSONResponse
 from common.file_util import save_input_file_to_temp
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 

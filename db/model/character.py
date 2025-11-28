@@ -4,6 +4,7 @@ from typing import Optional
 from enum import Enum
 from pydantic import BaseModel
 from sqlmodel import Field, SQLModel, UniqueConstraint, Session, select, Relationship
+from db.model.user_store import UserCharacter
 
 ## logger
 logger = logging.getLogger("app")
@@ -22,7 +23,7 @@ class Character(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     ## 보유한 유저 리스트
-    users: list["UserCharacter"] = Relationship(back_populates="character")
+    user_character: list["UserCharacter"] = Relationship(back_populates="character")#, link_model=UserCharacter)
 
     __table_args__ = (
         UniqueConstraint("type_code", "idx", name="character_type_index"),

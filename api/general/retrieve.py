@@ -1,12 +1,8 @@
-import os, logging
-from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
-# from db.vector import vector_collection, embedding_model
 from db.vectordb import milvus_service
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 

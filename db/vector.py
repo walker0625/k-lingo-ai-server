@@ -1,6 +1,4 @@
-# from fastapi import FastAPI
-# from pydantic import BaseModel
-import os, logging
+import os
 from pymilvus import(
     connections,
     utility,
@@ -11,9 +9,8 @@ from pymilvus import(
     db
 )
 from sentence_transformers import SentenceTransformer
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 logger.info("MILVUS SETTING")
 
 # Milvus connection

@@ -1,18 +1,12 @@
 ## Processing user character and equipment purchases
-
-import os, logging
-from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Field, SQLModel, create_engine, Session, select
-from db.session import  SessionDep, get_session, get_user_by_username
-from db.model.user import User, get_user_by_id
-from db.model.character import Character, CharacterResponse
+from fastapi import APIRouter, HTTPException, status
+from sqlmodel import select
+from db.session import  SessionDep, get_user_by_username
+from db.model.user import User
+from db.model.character import CharacterResponse
 from db.model.user_store import UserCharacter, UserCharacterCreate, UserCharacterResponse
-
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 
@@ -26,7 +20,7 @@ def get_characters(username:str, session : SessionDep):
             detail="User not found"
         )
     result = []
-    for character in _user.characters:
+    for character in _user.user_character:
         result.append(CharacterResponse(
             id = character.id,
             type_code = character.type_code,
@@ -36,14 +30,14 @@ def get_characters(username:str, session : SessionDep):
         ))
     return result
         
-@router.post("/buy/character", response_model=UserCharacterResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/character/change", response_model=UserCharacterResponse, status_code=status.HTTP_201_CREATED)
 def add_item(item: UserCharacterCreate, session: SessionDep):
     """
         Character Type : 1 - AVATAR(외형), 2 -COLOR
-        캐럭터 구매 처리, 구매시 장착 여부는 확인 필요
+        캐럭터 변경 처리, 변경시 기본 장착 처리
     """
     ## user checker
-    _user = get_user_by_id(session, item.user_id)
+    _user = session.get(User,item.user_id)
     if not _user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -62,7 +56,7 @@ def add_item(item: UserCharacterCreate, session: SessionDep):
         user_id = item.user_id,
         username = _user.username,
         character_id = item.character_id,
-        is_used = False, ## 구매시 기본 장차 처리 여부??
+        is_used = True, ## 구매시 기본 장착 처리
         desc = item.desc
     )
     session.add(new_item)

@@ -1,13 +1,10 @@
-import os, logging
 from datetime import datetime
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Field, SQLModel, create_engine, Session, select
+from sqlmodel import Session, select
 from db.session import  SessionDep, get_session
 from db.model.item import Item, ItemResponse, ItemCreate
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 

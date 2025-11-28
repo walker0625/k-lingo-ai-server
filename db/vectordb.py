@@ -1,9 +1,8 @@
-import os, logging
+import os
 from pymilvus import connections, utility, db, Collection, CollectionSchema, FieldSchema, DataType
 from sentence_transformers import SentenceTransformer
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 MILVUS_HOST=os.environ["MILVUS_HOST"]
 MILVUS_PORT=os.environ["MILVUS_PORT"]
 MILVUS_DATABASE=os.environ["MILVUS_DATABASE"]
@@ -17,7 +16,7 @@ class MilvusHandler:
         self.model = None
 
     def connect(self):
-        logger.info("MILVUS CONNECTION")
+        logger.info("Milvus connection")
         connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
         # DB 생성/선택
         if MILVUS_DATABASE not in db.list_database():
@@ -64,7 +63,7 @@ class MilvusHandler:
         if self.collection:
             self.collection.release()
         connections.disconnect("default")
-        logger.debug("Milvus disconnected.")
+        logger.debug("milvus disconnected.")
         
     def encode(self, text: str):
         if not self.model:
