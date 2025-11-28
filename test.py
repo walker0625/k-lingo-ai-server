@@ -31,12 +31,14 @@ def run_test():
     try:
         # EXAONE 모델 사용 시 Ollama 호환성 및 JSON 모드 필수
         llm = ChatOllama(
+            # qwen:14b-chat - 제미나이 추천
             # llama3:8b-instruct-q4_K_M - 제미나이 추천
             # qwen3-vl:8b - 응답이 없음 : 양자화 모델 변경 test           
             # deepseek-r1:8b - 응답이 없음 : 양자화 모델 변경 test           
             model="llama3:8b-instruct-q4_K_M",
             format="json",
-            temperature=0.0
+            temperature=0.0,
+            num_gpu=-1 # -1 : gpu 사용하도록 설정 / 0 : cpu 사용하도록 설정
         )
     except Exception as e:
         logger.error(f"❌ LLM 설정 실패: Ollama 서버가 실행 중인지, 모델이 설치되었는지 확인하세요. 에러: {e}")
