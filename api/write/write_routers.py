@@ -5,11 +5,9 @@ from typing import List
 from .dto.write_dto import (
     ImmigrationFormValidation,
     OCRResponse,
-    BridgeRequest,
-    BridgeResponse,
 )
 from .write_service import WriteService
-from .write_agent import WriteAgent
+from api.write.write_agent import WriteAgent
 
 router = APIRouter(tags=["write"])
 
@@ -85,25 +83,3 @@ async def validate_immigration_form(
     except Exception as e:
         print(f"[Validation Error] {str(e)}")
         raise HTTPException(status_code=500, detail=f"검증 오류: {str(e)}")
-
-
-@router.post(
-    "/bridge",
-    response_model=BridgeResponse,
-    summary="[개발중] Bridge Agent (영어 답변 분석)",
-    description="이 기능은 현재 개발 중입니다. 사용자의 영어 답변을 분석해 한국어 가이드를 줍니다.",
-)
-async def get_writing_bridge(request: BridgeRequest):
-    """
-    [Bridge Agent]
-    사용자의 영어 인터뷰 답변을 분석하여, 한국어 쓰기 학습을 위한 가이드를 생성합니다.
-    사용자의 의도를 파악하고 DB에서 적절한 한국어 질문을 매칭하여 난이도별(Easy/Normal/Hard) 예시 답변을 제공합니다.
-    """
-    try:
-        result = await write_agent.generate_guide(request.user_answer)
-        return result
-    except Exception as e:
-        print(f"[Bridge Agent Error] {e}")
-        raise HTTPException(
-            status_code=500, detail=f"에이전트 처리 중 오류 발생: {str(e)}"
-        )

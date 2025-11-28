@@ -2,6 +2,11 @@ import os
 import json
 from typing import Dict, Any
 
+from dotenv import load_dotenv
+
+## Load .env file
+load_dotenv()
+
 # Langchain 관련 임포트
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
@@ -14,14 +19,14 @@ from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 # 상위 폴더(db)에 있는 interview_data.py를 import 합니다.
 # 만약 파일명이 다르다면 맞춰주세요 (예: db.interview_db)
 
-try:
-    from db.inteview_data import INTERVIEW_DB
-except ImportError:
-    # 경로 에러 방지를 위한 예외처리 (서버 실행 위치에 따라 다를 수 있음)
-    import sys
+# try:
+#     from db.inteview_data import INTERVIEW_DB
+# except ImportError:
+#     # 경로 에러 방지를 위한 예외처리 (서버 실행 위치에 따라 다를 수 있음)
+#     import sys
 
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from db.interview_data import INTERVIEW_DB
+#     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+#     from db.interview_data import INTERVIEW_DB
 
 
 # 1. [TOOL] 검색 도구 (한글 설명)
@@ -45,10 +50,10 @@ def search_interview_question(intent_keyword: str):
 
 
 # 2. [Class] 에이전트 클래스
-class WriteAgnet:
+class WriteAgent:
     def __init__(self):
         # API 키 확인
-        if "OPEN_API_KEY" not in os.environ:
+        if "OPENAI_API_KEY" not in os.environ:
             print("[WriteAgent] Warning: OPENAI_API_KEY is not set.")
 
         self.agent_executor = self._create_agent_executor()
