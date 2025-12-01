@@ -1,7 +1,7 @@
 ## Processing user character and equipment purchases
 
 import random
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 from db.session import  SessionDep, get_current_active_user
@@ -98,6 +98,29 @@ def get_interview(level:int, session : SessionDep):
     """레벨에 해당하는 인터뷰 리스트 (상:3, 중:2, 하:1)"""
     statement = select(Interview).where(Interview.type_code == InterviewLevel(level))
     result = session.exec(statement).all()
+    return result
+
+@router.get("/answer/get/{user_id}", response_model=list[UserInterviewResponse])
+def get_user_answer(user_id:int, session : SessionDep, level:int = 0):
+    """레벨에 해당하는 인터뷰 리스트 (상:3, 중:2, 하:1, 전체 : 0)"""
+    _user: User | None = session.get(User, user_id)
+    if not _user:
+        raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User not found"
+            )
+    _answeres = _user.user_interview
+    result = []
+    for _answer in _answeres:
+        _interview = _answer.interview
+        if level != 0 and level != _interview.type_code != InterviewLevel(level):
+            continue
+        result.append(UserInterviewResponse(
+            id = _answer.id, user_id=_user.id, interview_id=_answer.interview_id,
+            username=_user.username, interview_kor=_interview.kor, interview_eng=_interview.eng,
+            interview_kor_key=_interview.kor_key, interview_eng_key=_interview.eng_key,
+            answer=_answer.answer, created_at=_answer.created_at
+        ))
     return result
 
 @router.post("/post", response_model=InterviewResponse, status_code=status.HTTP_201_CREATED)

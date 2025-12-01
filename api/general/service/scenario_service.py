@@ -30,6 +30,7 @@ class QuestReadOrListenInfo(QuestBase):
     full_data: WordData
     voice_data: str | None = None
 
+### quest type, level에 해당하는 quest 정보 가져오기
 def quest_words(quests:list[ReadingQuest | ListeningQuest],_type:str,level:QuestLevel):
     words = []
     for word in [q.quest_words for q in quests if q.quest_type == _type and q.quest_level == level]:
@@ -106,7 +107,7 @@ def gen_read_or_listen_quest(stage_type:StageType, quests:list[BaseModel],level:
     full_data = quest_template[stage_type]['full_data'].format(quest_data[correct_index][0].name,quest_data[correct_index][1].name)
     return QuestReadOrListenInfo(
         index=1,
-        dificulity=QuestLevel.EASY,
+        dificulity=level,
         target_data=target_data,
         correct_answer_index=correct_index,
         word_data1=WordData(

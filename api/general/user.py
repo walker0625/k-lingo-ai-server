@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import Annotated
@@ -60,12 +60,12 @@ def read_users_me(
 ):
     return current_user
 
-@router.get("/host")
-def protected_route(
-    current_user: Annotated[User, Depends(get_current_active_user)]
-):
-    ## how to check host user.
-    return {
-        "message": f"Hello host player, {current_user.username}!",
-        "user_id": current_user.id
-    }
+# @router.get("/host")
+# def protected_route(
+#     current_user: Annotated[User, Depends(get_current_active_user)]
+# ):
+#     ## how to check host user.
+#     return {
+#         "message": f"Hello host player, {current_user.username}!",
+#         "user_id": current_user.id
+#     }

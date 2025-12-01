@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Lingo - 한글 학습</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .phone {
+            width: 375px;
+            height: 812px;
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            position: relative;
+            display: none;
+        }
+
+        .phone.active {
+            display: block;
+        }
+
+        .page-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.5);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .dot.active {
+            background: white;
+            width: 30px;
+            border-radius: 6px;
+        }
+
+        .status-bar {
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .app-name {
+            font-weight: 600;
+        }
+
+        .status-icons {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+            background: linear-gradient(to bottom, #fff, #fafafa);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .logo span {
+            color: #58cc02;
+        }
+
+        .stats {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: white;
+            padding: 5px 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .fire {
+            color: #ff9600;
+        }
+
+        .profile-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: white;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 20px;
+            height: calc(100% - 140px);
+            overflow-y: auto;
+            background: linear-gradient(to bottom, #fafafa, #fff);
+        }
+
+        .greeting {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        /* Game-like lesson path */
+        .game-path {
+            position: relative;
+            padding: 40px 0;
+            min-height: 600px;
+        }
+
+        .lesson-stage {
+            position: relative;
+            margin: 50px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+        }
+
+        .lesson-stage.left {
+            justify-content: flex-start;
+            padding-left: 30px;
+        }
+
+        .lesson-stage.right {
+            justify-content: flex-end;
+            padding-right: 30px;
+        }
+
+        /* Curved path connections */
+        .lesson-stage::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            width: 6px;
+            height: 50px;
+            background: linear-gradient(to bottom, #58cc02, #7ed321);
+            transform: translateX(-3px);
+            z-index: 0;
+        }
+
+        .lesson-stage:last-child::after {
+            display: none;
+        }
+
+        .lesson-stage.locked::after {
+            background: linear-gradient(to bottom, #d0d0d0, #b0b0b0);
+        }
+
+        /* Curved connector from center to left */
+        .lesson-stage.left::after {
+            width: 100px;
+            height: 60px;
+            background: transparent;
+            border-left: 6px solid #58cc02;
+            border-bottom: 6px solid #58cc02;
+            border-bottom-left-radius: 50px;
+            left: 50%;
+            transform: translateX(-100px);
+        }
+
+        .lesson-stage.left.locked::after {
+            border-left-color: #d0d0d0;
+            border-bottom-color: #d0d0d0;
+        }
+
+        /* Curved connector from center to right */
+        .lesson-stage.right::after {
+            width: 100px;
+            height: 60px;
+            background: transparent;
+            border-right: 6px solid #58cc02;
+            border-bottom: 6px solid #58cc02;
+            border-bottom-right-radius: 50px;
+            left: 50%;
+            transform: translateX(0);
+        }
+
+        .lesson-stage.right.locked::after {
+            border-right-color: #d0d0d0;
+            border-bottom-color: #d0d0d0;
+        }
+
+        /* Center stages get straight line */
+        .lesson-stage:not(.left):not(.right)::after {
+            width: 6px;
+            height: 50px;
+            background: linear-gradient(to bottom, #58cc02, #7ed321);
+            left: 50%;
+            transform: translateX(-3px);
+        }
+
+        .lesson-stage:not(.left):not(.right).locked::after {
+            background: linear-gradient(to bottom, #d0d0d0, #b0b0b0);
+        }
+
+        .lesson-node {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 10;
+        }
+
+        .lesson-node:hover {
+            transform: scale(1.1);
+        }
+
+        .lesson-node.completed {
+            background: linear-gradient(135deg, #58cc02, #7ed321);
+            animation: pulse 2s infinite;
+        }
+
+        .lesson-node.current {
+            background: linear-gradient(135deg, #ff9600, #ffc107);
+            box-shadow: 0 6px 20px rgba(255, 150, 0, 0.4);
+            animation: glow 1.5s infinite alternate;
+        }
+
+        .lesson-node.locked {
+            background: #d0d0d0;
+            cursor: not-allowed;
+        }
+
+        .lesson-node.boss {
+            width: 85px;
+            height: 85px;
+            background: linear-gradient(135deg, #e53935, #c62828);
+            box-shadow: 0 8px 25px rgba(229, 57, 53, 0.4);
+        }
+
+        .lesson-node.treasure {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(88, 204, 2, 0.3); }
+            50% { box-shadow: 0 4px 25px rgba(88, 204, 2, 0.6); }
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 6px 20px rgba(255, 150, 0, 0.4); }
+            100% { box-shadow: 0 8px 30px rgba(255, 150, 0, 0.8); }
+        }
+
+        .lesson-label {
+            position: absolute;
+            top: 80px;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+
+        .unit-header {
+            text-align: center;
+            margin: 30px 0 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+        }
+
+        .unit-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .unit-subtitle {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .tiger-guide {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 45px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-10px); }
+        }
+
+        .speech-bubble {
+            position: absolute;
+            background: white;
+            border: 2px solid #58cc02;
+            border-radius: 15px;
+            padding: 8px 15px;
+            font-size: 13px;
+            white-space: nowrap;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            top: -50px;
+            right: -120px;
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 20px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid white;
+        }
+
+        /* Page 2 Styles */
+        .back-header {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: white;
+        }
+
+        .back-btn {
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            color: #58cc02;
+            transform: scale(1.1);
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 12px;
+            background: #e5e5e5;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #58cc02, #a0e86f);
+            width: 80%;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+
+        .hearts {
+            color: #ff4b4b;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .exercise-card {
+            background: linear-gradient(135deg, #1cb0f6, #0d8ac7);
+            border-radius: 20px;
+            padding: 30px 20px;
+            color: white;
+            text-align: center;
+            margin: 30px 20px 20px;
+            box-shadow: 0 8px 20px rgba(28, 176, 246, 0.3);
+        }
+
+        .tiger-center {
+            width: 90px;
+            height: 90px;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.2));
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 15px 0 8px;
+        }
+
+        .card-subtitle {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .card-sentence {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 20px 0 10px;
+            line-height: 1.4;
+        }
+
+        .romanization {
+            font-size: 12px;
+            opacity: 0.8;
+            font-style: italic;
+        }
+
+        .audio-button {
+            background: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 28px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1cb0f6;
+            cursor: pointer;
+            margin-top: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: transform 0.2s;
+        }
+
+        .audio-button:hover {
+            transform: scale(1.05);
+        }
+
+        .mic-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            margin: 25px 20px;
+        }
+
+        .mic-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #e53935, #c62828);
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.4);
+            transition: all 0.2s;
+        }
+
+        .mic-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(229, 57, 53, 0.6);
+        }
+
+        .skip-mic {
+            background: white;
+            color: #999;
+            font-size: 11px;
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 2px dashed #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            line-height: 1.3;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .result-box {
+            border: 3px solid #58cc02;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px;
+            background: linear-gradient(to bottom, #f0fff4, #e8f5e9);
+            box-shadow: 0 4px 15px rgba(88, 204, 2, 0.2);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #58cc02;
+            font-weight: 700;
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+
+        .score {
+            font-size: 42px;
+            font-weight: 800;
+            color: #333;
+            margin-right: 8px;
+        }
+
+        .score-label {
+            color: #ff9600;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .tip {
+            font-size: 13px;
+            color: #555;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            margin: 20px;
+        }
+
+        .retry-button {
+            flex: 1;
+            background: white;
+            border: 2px solid #e5e5e5;
+            border-radius: 15px;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .retry-button:hover {
+            border-color: #58cc02;
+            color: #58cc02;
+        }
+
+        .continue-button {
+            flex: 1;
+            background: linear-gradient(135deg, #58cc02, #7ed321);
+            border: none;
+            border-radius: 15px;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(88, 204, 2, 0.3);
+            transition: all 0.2s;
+        }
+
+        .continue-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(88, 204, 2, 0.4);
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0 20px;
+            border-top: 1px solid #f0f0f0;
+            background: white;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #999;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover {
+            color: #58cc02;
+        }
+
+        .nav-item.active {
+            color: #58cc02;
+        }
+
+        .nav-icon {
+            font-size: 24px;
+            margin-bottom: 3px;
+        }
+
+        .nav-item.active .nav-icon {
+            font-size: 28px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Page 1: Game-like Lesson Path -->
+    <div class="phone active" id="page1">
+        <div class="status-bar">
+            <div class="app-name">K-Lingo</div>
+            <div class="status-icons">📶 📡 🔋</div>
+        </div>
+
+        <div class="header">
+            <div class="logo"><span>K-</span>Lingo</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="fire">🔥</span>
+                    <span>12</span>
+                </div>
+                <div class="stat-item">
+                    <span>💎</span>
+                    <span>1140</span>
+                </div>
+                <div class="stat-item">
+                    <span>🛡️</span>
+                </div>
+                <div class="profile-icon">KS</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="greeting">사슴니오, 김철수님!</div>
+            
+            <div class="unit-header">
+                <div class="unit-title">유닛 1. 기본 인사</div>
+                <div class="unit-subtitle">Unit 1: Basic Greetings</div>
+            </div>
+
+            <div class="game-path">
+                <!-- Lesson 1 - Completed -->
+                <div class="lesson-stage">
+                    <div class="lesson-node completed">
+                        ✓
+                        <div class="lesson-label">레슨 1 완료!</div>
+                    </div>
+                </div>
+
+                <!-- Lesson 2 - Current with Tiger -->
+                <div class="lesson-stage right">
+                    <div class="lesson-node current">
+                        📖
+                        <div class="tiger-guide">🐯
+                            <div class="speech-bubble">오늘도 힘차 공부 할까?</div>
+                        </div>
+                        <div class="lesson-label">현재 진행중</div>
+                    </div>
+                </div>
+
+                <!-- Lesson 3 - Practice -->
+                <div class="lesson-stage left">
+                    <div class="lesson-node current">
+                        🎯
+                        <div class="lesson-label">연습하기</div>
+                    </div>
+                </div>
+
+                <!-- Lesson 4 - Story -->
+                <div class="lesson-stage">
+                    <div class="lesson-node locked">
+                        📚
+                        <div class="lesson-label">이야기</div>
+                    </div>
+                </div>
+
+                <!-- Treasure Chest -->
+                <div class="lesson-stage right">
+                    <div class="lesson-node treasure">
+                        💰
+                        <div class="lesson-label">보물 상자</div>
+                    </div>
+                </div>
+
+                <!-- Boss Level -->
+                <div class="lesson-stage">
+                    <div class="lesson-node boss locked">
+                        👑
+                        <div class="lesson-label">유닛 테스트</div>
+                    </div>
+                </div>
+
+                <!-- More locked lessons -->
+                <div class="lesson-stage left">
+                    <div class="lesson-node locked">
+                        🔒
+                    </div>
+                </div>
+
+                <div class="lesson-stage right">
+                    <div class="lesson-node locked">
+                        🔒
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <div class="nav-item active">
+                <div class="nav-icon">📚</div>
+                <div>학습</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">📊</div>
+                <div>복습</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon" style="font-size: 32px; color: #58cc02;">●</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">🛒</div>
+                <div>상점</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">👤</div>
+                <div>프로필</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Speaking Exercise -->
+    <div class="phone" id="page2">
+        <div class="status-bar">
+            <div class="app-name">K-Lingo</div>
+            <div class="status-icons">📶 📡 🔋</div>
+        </div>
+
+        <div class="back-header">
+            <div class="back-btn" onclick="showPage(1)">←</div>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div class="hearts">❤️ 4</div>
+        </div>
+
+        <div class="content" style="padding-top: 30px;">
+            <div class="exercise-card">
+                <div class="tiger-center">🐯</div>
+                
+                <div class="card-title">[말기] 앤습]</div>
+                <div class="card-subtitle">아래 무실을 첫고 국쩨래 보요.</div>
+                
+                <div class="card-sentence">채이 책성 위어 이습니다.</div>
+                <div class="romanization">(Chaeg-i chaeg-sang wi e issseullnida)</div>
+
+                <button class="audio-button">🔊 하인만 음선 듣기</button>
+            </div>
+
+            <div class="mic-controls">
+                <div class="skip-mic">공글 듬...▲<br>(데테 시하멱 경빙)</div>
+                <button class="mic-button">🎤</button>
+            </div>
+
+            <div class="result-box">
+                <div class="result-header">
+                    <span>⭐</span>
+                    <span>평수 결과</span>
+                </div>
+                <div>
+                    <span class="score">92</span><span class="score-label">점 위유</span>
+                </div>
+                <div class="tip">+시 피티드: 발듬이 아주 잃았네다!</div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="retry-button">재시도</button>
+                <button class="continue-button">다음으드</button>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <div class="nav-item active">
+                <div class="nav-icon">📚</div>
+                <div>학습</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">📊</div>
+                <div>복습</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon" style="font-size: 32px; color: #58cc02;">●</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">🛒</div>
+                <div>상점</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">👤</div>
+                <div>프로필</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-indicator">
+        <div class="dot active" onclick="showPage(1)"></div>
+        <div class="dot" onclick="showPage(2)"></div>
+    </div>
+
+    <script>
+        function showPage(pageNum) {
+            document.querySelectorAll('.phone').forEach(phone => {
+                phone.classList.remove('active');
+            });
+            document.querySelectorAll('.dot').forEach(dot => {
+                dot.classList.remove('active');
+            });
+            
+            document.getElementById(`page${pageNum}`).classList.add('active');
+            document.querySelectorAll('.dot')[pageNum - 1].classList.add('active');
+        }
+
+        // Add click handlers to lesson nodes
+        document.querySelectorAll('.lesson-node:not(.locked)').forEach(node => {
+            node.addEventListener('click', function() {
+                if (!this.classList.contains('locked')) {
+                    showPage(2);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

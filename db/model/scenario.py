@@ -28,7 +28,7 @@ class Scenario(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     ## 보유한 stage 리스트
-    # stages: list["Stage"] = Relationship(back_populates="scenario")
+    stage: list["Stage"] = Relationship(back_populates="scenario")
 ## 교육 대상자 언어권
 class StageType(Enum):
     READING = 1
@@ -68,7 +68,7 @@ class Stage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     ## 연결된 scenario 리스트
-    # scenario: "Scenario" = Relationship(back_populates="stages")
+    scenario: "Scenario" = Relationship(back_populates="stage")
 
 class ScenarioResponse(BaseModel):
     id: int

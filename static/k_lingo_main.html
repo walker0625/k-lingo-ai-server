@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K-Lingo: 한국어 학습 사이트</title>
+    <!-- Tailwind CSS CDN 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 폰트 설정 */
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+
+        /* Tailwind 커스텀 색상 및 그림자 설정 (React 코드의 theme 반영) */
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'kl-primary': '#58cc02',
+                        'kl-accent': '#ffc800',
+                        'kl-danger': '#ff4b4b',
+                        'kl-info': '#007bff',
+                        'kl-bg': '#f7f7f7',
+                        'kl-text-dark': '#3c3c3c',
+                    },
+                    boxShadow: {
+                        'kl-xl': '0 6px 12px rgba(255, 200, 0, 0.5)',
+                    }
+                }
+            }
+        }
+
+        /* Progress Bar 스타일링 (Tailwind 커스텀 유틸리티와 유사하게) */
+        progress {
+            appearance: none;
+            -webkit-appearance: none;
+            height: 12px;
+            border-radius: 6px;
+        }
+        progress::-webkit-progress-bar {
+            background-color: #e5e5e5;
+            border-radius: 6px;
+        }
+        progress::-webkit-progress-value {
+            background-color: #58cc02;
+            border-radius: 6px;
+        }
+
+        /* 말풍선 스타일 */
+        .speech-bubble {
+            position: relative;
+            background: #fff;
+            border-radius: 1rem;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -15px; 
+            left: 50%;
+            transform: translateX(-50%);
+            border: 15px solid transparent;
+            border-top-color: #fff;
+            border-bottom: 0;
+        }
+
+        /* 레코딩 버튼 애니메이션 */
+        .record-btn-active {
+             box-shadow: none !important;
+             transform: translateY(4px);
+        }
+    </style>
+</head>
+<body class="bg-kl-bg min-h-screen">
+
+    <div id="app-container" class="font-sans bg-kl-bg min-h-screen pb-16">
+
+        <!-- ---------------------------------------------------- -->
+        <!-- 1. Header Component (상단 바와 하단 네비게이션) -->
+        <!-- ---------------------------------------------------- -->
+        <header id="main-header" class="flex justify-between items-center p-4 border-b-2 border-gray-200 bg-white shadow-md sticky top-0 z-20">
+            <div class="text-2xl font-black text-kl-primary">K-Lingo</div>
+            
+            <div id="stat-group" class="flex gap-4 max-sm:gap-2 text-sm font-bold">
+                <!-- Stat items will be updated by JS -->
+            </div>
+
+            <div class="flex gap-3 items-center">
+                <span class="cursor-pointer text-xl" title="순위표">🛡️</span>
+                <img id="profile-img" alt="Profile" class="w-8 h-8 rounded-full border-2 border-kl-primary" />
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div id="main-content-wrapper" class="pb-16">
+            <!-- Content will be injected/swapped here -->
+        </div>
+
+        <!-- Navigation Bar (하단 네비게이션) -->
+        <footer class="flex justify-around py-3 border-t-2 border-gray-200 bg-white fixed bottom-0 w-full shadow-lg z-10">
+            <a href="#" class="nav-item text-center p-1.5 text-kl-primary font-bold" data-route="home">📖 학습</a>
+            <a href="#" class="nav-item text-center p-1.5 text-gray-500" data-route="review">🔄 복습</a>
+            <a href="#" class="nav-item text-center p-1.5 text-gray-500" data-route="stories">🎙️ 이야기</a>
+            <a href="#" class="nav-item text-center p-1.5 text-gray-500" data-route="shop">🛒 상점</a>
+            <a href="#" class="nav-item text-center p-1.5 text-gray-500" data-route="profile">👤 프로필</a>
+        </footer>
+
+    </div>
+
+    <!-- ---------------------------------------------------- -->
+    <!-- 2. JavaScript Logic (상태 관리 및 페이지 전환) -->
+    <!-- ---------------------------------------------------- -->
+    <script>
+        const Page = { HOME: 'home', LESSON: 'lesson' };
+        
+        // Mock Data
+        let appState = {
+            currentPage: Page.HOME,
+            currentLife: 5,
+            userStats: { streak: 12, gems: 1540, life: 5, profilePic: 'https://placehold.co/30x30/58cc02/ffffff?text=KS' },
+            units: [
+                { id: 1, title: '만나서 반갑습니다', description: '기본 인사, 자기소개', status: 'completed' },
+                { id: 2, title: '이것은 무엇입니까?', description: '사물과 위치를 묻고 답하기', status: 'current', progress: '8/10' },
+                { id: 3, title: '지금 몇 시예요?', description: '시간과 날짜 말하기', status: 'locked' },
+                { id: 4, title: '무슨 음식을 좋아해요?', description: '음식 주문 및 선호 표현', status: 'locked' },
+            ],
+            sentence: { korean: "책이 책상 위에 있습니다.", romanization: "Chaeg-i chaegsang wi-e isseumnida." },
+            isRecording: false,
+            feedback: null,
+            progressValue: 80
+        };
+
+        const $wrapper = document.getElementById('main-content-wrapper');
+        const $statGroup = document.getElementById('stat-group');
+        const $profileImg = document.getElementById('profile-img');
+
+        // === 상태 업데이트 및 렌더링 함수 ===
+
+        function updateHeader() {
+            // Stat Items 갱신
+            const stats = [
+                { icon: '🔥', value: appState.userStats.streak, colorClass: 'text-red-500' },
+                { icon: '💎', value: appState.userStats.gems, colorClass: 'text-cyan-500' },
+                { icon: '❤️', value: appState.currentLife, colorClass: 'text-[#ff4b4b]' },
+            ];
+
+            $statGroup.innerHTML = stats.map(stat => 
+                `<div class="flex items-center gap-1.5 p-1.5 border border-gray-200 rounded-lg text-sm font-bold max-sm:text-xs max-sm:p-1">
+                    <span class="${stat.colorClass}">${stat.icon}</span>
+                    <span class="text-gray-700">${stat.value}</span>
+                </div>`
+            ).join('');
+
+            $profileImg.src = appState.userStats.profilePic;
+        }
+
+        function render() {
+            updateHeader();
+
+            if (appState.currentPage === Page.HOME) {
+                $wrapper.innerHTML = renderLearningPathHome();
+                document.querySelectorAll('.unit-node-current .start-lesson-btn').forEach(btn => {
+                    btn.onclick = handleStartLesson;
+                });
+            } else if (appState.currentPage === Page.LESSON) {
+                $wrapper.innerHTML = renderSpeakingPractice();
+                attachLessonListeners();
+            }
+        }
+
+        // === 3. Learning Path Home 렌더 함수 ===
+        function renderLearningPathHome() {
+            const SpeechBubble = (message) => `
+                <div class="relative w-48 mb-4 bg-white rounded-xl p-4 shadow-lg text-gray-700">
+                    <p class="text-sm font-semibold">${message}</p>
+                    <div class="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 border-[15px] border-transparent border-t-white border-b-0 shadow-md"></div>
+                </div>
+            `;
+            
+            const UnitNode = (unit) => {
+                const isCompleted = unit.status === 'completed';
+                const isCurrent = unit.status === 'current';
+                
+                let wrapperClasses = "mx-auto my-8 p-4 rounded-xl shadow-lg transition-all w-[90%] max-w-sm text-left ";
+                let statusIcon = '';
+                let bgColor = '';
+                let borderColor = '';
+                let textStyle = 'text-gray-700';
+                let sizeClass = 'p-4 text-xl';
+                let cursorClass = 'cursor-pointer';
+
+                if (isCurrent) {
+                    bgColor = 'bg-[#ffc800]';
+                    borderColor = 'border-4 border-yellow-500';
+                    statusIcon = '▶️';
+                    textStyle = 'text-gray-900 font-semibold';
+                    sizeClass = 'p-6 text-2xl';
+                    wrapperClasses = wrapperClasses.replace('max-w-sm', 'max-w-md scale-[1.05] shadow-2xl shadow-yellow-200/50 unit-node-current');
+                } else if (isCompleted) {
+                    bgColor = 'bg-green-200';
+                    borderColor = 'border-2 border-[#58cc02]';
+                    statusIcon = '✅';
+                } else { // Locked
+                    bgColor = 'bg-gray-200';
+                    borderColor = 'border-2 border-gray-300';
+                    statusIcon = '🔒';
+                    textStyle = 'text-gray-500 filter grayscale';
+                    cursorClass = 'cursor-not-allowed opacity-80';
+                }
+
+                return `
+                    <div class="${wrapperClasses} ${bgColor} ${borderColor} ${textStyle} ${sizeClass} ${cursorClass}">
+                        <h3 class="mt-0 font-bold">
+                            ${statusIcon} 유닛 ${unit.id}: ${unit.title}
+                        </h3>
+                        <p class="text-sm mt-1">
+                            ${unit.description} ${isCurrent ? `(${unit.progress} 완료)` : ''}
+                        </p>
+                        ${isCurrent ? `
+                            <button class="start-lesson-btn mt-4 px-6 py-2 bg-[#ffc800] text-gray-800 font-bold rounded-xl hover:bg-yellow-500 transition-colors shadow-md">
+                                다음 레슨 시작하기
+                            </button>` : ''}
+                    </div>
+                `;
+            };
+
+            return `
+                <main class="p-5 text-center bg-[#f7f7f7] min-h-screen pt-8 relative">
+                    <h2 class="text-3xl font-extrabold text-gray-800 mb-8">안녕하세요, 김철수님!</h2>
+                    
+                    <!-- 캐릭터 및 말풍선 -->
+                    <div class="absolute -top-4 right-0 md:-right-20 z-10 flex flex-col items-center max-w-[200px]">
+                        ${SpeechBubble("오늘도 열심히 공부해 볼까요?")}
+                        <img src="https://placehold.co/80x100/58cc02/fff?text=Tiger+Char" alt="K-Lingo 캐릭터" class="w-20 h-24 object-contain filter drop-shadow-md" />
+                    </div>
+
+                    <div class="flex flex-col items-center mt-20 max-w-xl mx-auto pb-10">
+                        ${appState.units.map((unit, index) => `
+                            ${UnitNode(unit)}
+                            ${index < appState.units.length - 1 ? '<div class="w-1 h-12 bg-gray-300 rounded-full"></div>' : ''}
+                        `).join('')}
+                        
+                        <p class="text-gray-400 mt-10">...</p>
+                    </div>
+                </main>
+            `;
+        }
+
+
+        // === 4. Speaking Practice 렌더 함수 ===
+        function renderSpeakingPractice() {
+            const isFeedbackSuccess = appState.feedback ? appState.feedback.score >= 80 : false;
+            const isButtonDisabled = !!appState.feedback || appState.isRecording;
+
+            const recordBtnClasses = appState.isRecording
+                ? 'bg-gray-400'
+                : isButtonDisabled
+                    ? 'bg-gray-400 cursor-default'
+                    : 'bg-[#ff4b4b] shadow-[0_4px_0_#dc2626] active:translate-y-1 active:shadow-none hover:bg-red-700';
+            
+            const SpeechBubble = (message) => `
+                <div class="relative w-48 mb-4 bg-white rounded-xl p-4 shadow-lg text-gray-700">
+                    <p class="text-sm font-semibold">${message}</p>
+                    <div class="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 border-[15px] border-transparent border-t-white border-b-0 shadow-md"></div>
+                </div>
+            `;
+
+            return `
+                <div class="bg-white min-h-screen">
+                    <!-- Lesson Header -->
+                    <header class="p-4 flex items-center border-b border-gray-200 bg-white sticky top-0 z-10">
+                        <span id="lesson-back-btn" class="cursor-pointer text-xl mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        </span>
+                        <progress value="${appState.progressValue}" max="100" class="flex-grow h-3 mx-4 rounded-full appearance-none"></progress>
+                        <span class="text-[#ff4b4b] ml-4 font-bold">❤️ ${appState.currentLife}</span>
+                    </header>
+
+                    <main class="p-5 text-center max-w-2xl mx-auto relative">
+                        <h3 class="text-xl text-[#007bff] mb-2 font-semibold">[말하기 연습]</h3>
+                        <p class="text-gray-600 text-base">아래 문장을 읽고 녹음해 보세요.</p>
+
+                        <!-- 캐릭터 및 말풍선 -->
+                        <div class="absolute -top-4 left-0 md:-left-20 z-10 flex flex-col items-center max-w-[200px]">
+                            ${SpeechBubble("천천히 또박또박 말해 보세요!")}
+                            <img src="https://placehold.co/80x100/58cc02/fff?text=Tiger+Char" alt="K-Lingo 캐릭터" class="w-20 h-24 object-contain filter drop-shadow-md" />
+                        </div>
+
+                        <div class="bg-blue-50 p-6 my-5 rounded-xl border-4 border-[#007bff] shadow-xl mt-20">
+                            <p class="text-3xl font-bold mb-4 text-gray-800">
+                                ${appState.sentence.korean}
+                            </p>
+                            <p class="text-gray-500 text-lg">
+                                (${appState.sentence.romanization})
+                            </p>
+                            <button class="mt-4 px-4 py-2 bg-[#007bff] text-white font-bold rounded-lg hover:bg-blue-700 transition-colors">
+                                🔊 원어민 음성 듣기
+                            </button>
+                        </div>
+
+                        <div class="mt-12">
+                            ${appState.isRecording ? 
+                                `<div class="h-12 bg-gray-200 mx-auto mb-5 rounded-md flex items-center justify-center text-gray-600 border border-dashed border-gray-400">
+                                    🎤 녹음 중...
+                                </div>` : ''
+                            }
+                            <button id="record-btn" 
+                                class="text-xl text-white font-bold p-6 rounded-full transition-all ${recordBtnClasses} ${appState.isRecording ? 'record-btn-active' : ''}"
+                                ${appState.feedback ? 'disabled' : ''}
+                            >
+                                ${appState.isRecording ? '중지 및 분석' : '🎙️ 녹음 시작'}
+                            </button>
+                        </div>
+
+                        ${appState.feedback ? `
+                            <div class="mt-10 p-5 rounded-xl border-4 ${isFeedbackSuccess ? 'border-[#58cc02] bg-green-50' : 'border-[#ffc800] bg-yellow-50'} shadow-xl">
+                                <h4 class="text-xl font-bold">✨ 분석 결과</h4>
+                                <p class="text-2xl mt-2">종합 점수: 
+                                    <span class="font-bold ${isFeedbackSuccess ? 'text-green-600' : 'text-yellow-600'}">
+                                        ${appState.feedback.score}점
+                                    </span>
+                                </p>
+                                ${appState.feedback.highlightedSentence}
+                                <p class="mt-3 font-bold ${isFeedbackSuccess ? 'text-green-700' : 'text-yellow-700'}">
+                                    **AI 피드백:** ${appState.feedback.message}
+                                </p>
+                                
+                                <div class="mt-5">
+                                    <button id="retry-btn" class="px-5 py-2 mr-3 bg-[#ffc800] text-white font-bold rounded-xl hover:bg-yellow-600 transition-colors">
+                                        재시도
+                                    </button>
+                                    <button id="next-btn" class="px-5 py-2 bg-[#58cc02] text-white font-bold rounded-xl hover:bg-green-600 transition-colors">
+                                        다음으로
+                                    </button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </main>
+                </div>
+            `;
+        }
+
+
+        // === 5. 이벤트 핸들러 및 리스너 연결 ===
+
+        function handleStartLesson() {
+            appState.currentPage = Page.LESSON;
+            render();
+        }
+        
+        function handleLessonComplete(success) {
+            if (!success) {
+                appState.currentLife = Math.max(0, appState.currentLife - 1);
+            }
+            appState.currentPage = Page.HOME;
+            appState.feedback = null;
+            render();
+        }
+
+        function handleGoBack() {
+            appState.currentPage = Page.HOME;
+            appState.feedback = null; // 피드백 초기화
+            appState.isRecording = false; // 녹음 상태 초기화
+            render();
+        }
+
+        function handleRecordClick() {
+            if (appState.feedback) return;
+
+            appState.isRecording = !appState.isRecording;
+            render(); // 녹음 시작/중지 UI 업데이트
+
+            if (!appState.isRecording) {
+                // 녹음 중지 시 분석 시뮬레이션
+                simulateAnalysis();
+            } else {
+                // 3초 후 자동 중지 및 분석 시뮬레이션
+                setTimeout(() => {
+                    if (appState.isRecording) {
+                        appState.isRecording = false;
+                        simulateAnalysis();
+                    }
+                }, 3000);
+            }
+        }
+
+        function simulateAnalysis() {
+            const score = Math.floor(Math.random() * 20) + 80; 
+            const isSuccess = score >= 90;
+            
+            const highlightedSentence = `
+                <p class="text-left text-lg mt-3">
+                    "책이 책상 <span class="font-bold ${isSuccess ? 'text-green-600' : 'text-yellow-600'}">위에</span> 있습니다." 
+                </p>
+            `;
+
+            appState.feedback = {
+                score: score,
+                message: isSuccess ? "발음이 아주 좋았습니다!" : " '위에'의 '위' 발음이 모호했습니다. 입술을 더 앞으로 내밀어 보세요.",
+                highlightedSentence: highlightedSentence
+            };
+            render();
+        }
+
+
+        function attachLessonListeners() {
+            // 뒤로가기 버튼
+            document.getElementById('lesson-back-btn')?.addEventListener('click', handleGoBack);
+            
+            // 녹음 버튼
+            document.getElementById('record-btn')?.addEventListener('click', handleRecordClick);
+            
+            // 피드백 버튼 (setTimeout을 사용하여 DOM 렌더링 후 연결)
+            setTimeout(() => {
+                document.getElementById('retry-btn')?.addEventListener('click', () => {
+                    appState.feedback = null;
+                    appState.isRecording = false;
+                    render();
+                });
+                document.getElementById('next-btn')?.addEventListener('click', () => {
+                    if(appState.feedback) {
+                        handleLessonComplete(appState.feedback.score >= 80);
+                    }
+                });
+            }, 0); 
+        }
+
+        // 초기 렌더링
+        window.onload = render;
+    </script>
+</body>
+</html>
