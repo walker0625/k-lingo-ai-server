@@ -1,8 +1,13 @@
-import os, requests, json, time, io, numpy as np, ollama
+import os, requests, json, time, io, numpy as np, ollama, random
 from datetime import datetime
 from PIL import Image
 from paddleocr import PaddleOCR
 from dotenv import load_dotenv
+
+# 쓰기 문제 생성용 추가
+from langchain_openai import ChatOpenAI
+from sqlmodel import Session, select
+from db.model.interview import Interview, UserInterview
 
 load_dotenv()
 
@@ -25,6 +30,9 @@ class WriteService:
         self.naver_url = os.getenv("NAVER_OCR_URL")
         self.naver_key = os.getenv("NAVER_SECRET_KEY")
         self.ollama_model = "hf.co/LGAI-EXAONE/EXAONE-4.0-1.2B-GGUF:Q4_K_M"
+        
+        # LLM 추가 (쓰기 문제 번역용)
+        self.llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     def run_naver(self, file_bytes, filename):
         try:
@@ -95,3 +103,84 @@ class WriteService:
         ]
 
         return {"mode": mode, "text": text, "validations": validations}
+    
+    # ============================================
+    # 쓰기 문제 생성 메서드 (NEW)
+    # ============================================
+    
+    async def translate_to_korean(self, english_answer: str, korean_question: str) -> str:
+        """영어 답변을 한글로 번역"""
+        prompt = f"""
+당신은 전문 번역가입니다.
+
+질문: {korean_question}
+영어 답변: {english_answer}
+
+위 영어 답변을 자연스러운 한국어로 번역하세요.
+정중한 표현(존댓말)을 사용하세요.
+
+번역된 한국어만 출력하세요:
+"""
+        try:
+            response = await self.llm.ainvoke(prompt)
+            return response.content.strip()
+        except Exception as e:
+            print(f"[Translation Error] {e}")
+            return "[번역 실패]"
+    
+    async def get_writing_questions(self, session: Session, user_id: int):
+        """쓰기 문제 생성: 사용자가 답변한 질문 중 5개 랜덤 + 답변 번역"""
+        
+        try:
+            # 1. 사용자가 답변한 데이터 조회
+            statement = (
+                select(
+                    UserInterview.interview_id,
+                    Interview.kor,
+                    Interview.eng,
+                    UserInterview.answer
+                )
+                .join(Interview, UserInterview.interview_id == Interview.id)
+                .where(UserInterview.user_id == user_id)
+            )
+            results = session.exec(statement).all()
+            
+            if not results:
+                return {
+                    "status": "error",
+                    "message": "사전 인터뷰 이력이 없습니다."
+                }
+            
+            # 2. 랜덤 5개 선택
+            selected = random.sample(list(results), min(5, len(results)))
+            
+            # 3. 영어 답변 → 한글 번역
+            questions = []
+            for row in selected:
+                korean_answer = await self.translate_to_korean(
+                    english_answer=row.answer,
+                    korean_question=row.kor
+                )
+                
+                questions.append({
+                    "interview_id": row.interview_id,
+                    "korean_question": row.kor,
+                    "english_question": row.eng,
+                    "expected_answer": korean_answer  # 예상 답변 (한글)
+                })
+            
+            return {
+                "status": "success",
+                "user_id": user_id,
+                "total_questions": len(questions),
+                "questions": questions
+            }
+            
+        except Exception as e:
+            print(f"[Get Writing Questions Error] {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "status": "error",
+                "message": str(e)
+            }
