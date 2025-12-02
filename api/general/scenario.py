@@ -7,9 +7,10 @@ from db.model.user import User
 from db.model.scenario import (
     Scenario,ScenarioResponse, Stage, StageType, QuestLevel, ReadingQuest, ListeningQuest
 )
-from api.general.service.scenario_service import QuestReadOrListenInfo, gen_read_or_listen_quest
+from api.general.service.scenario_service_RL import gen_read_or_listen_quest
+from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo
 from db.redis import StateStore
-from db.model.progress import ProgressResponse, ProgressState, Progress, ProgressCreate
+from db.model.progress import ProgressResponse, ProgressState, Progress #, ProgressCreate
 from .service.progress_service import ProgressRLInfo, ProgressResult
 from common.evaluation import EvalutionType, evaluate, grade
 ## logger
@@ -47,7 +48,7 @@ def get_stages(session : SessionDep):
     results = session.exec(statement).all()
     return results
 
-@router.get("/{scenario_id}/{stage_id}/{level}", response_model=QuestReadOrListenInfo)
+@router.get("/{scenario_id}/{stage_id}/{level}", response_model=QuestBase)
 def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     """
         시나리오 ID, 스테이지 ID, 레벨로 스테이지 퀘스트 정보 가져오기
@@ -79,7 +80,7 @@ def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     quest_info.index = scenario_id
     return quest_info
 
-@router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestReadOrListenInfo)
+@router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestBase)
 def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : SessionDep):
     """
         시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
@@ -105,7 +106,7 @@ def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : Sess
     quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
     return quest_info
 
-@router.get("/stages/redis/{scenario_id}/{stage_type}/{level}", response_model=QuestReadOrListenInfo)
+@router.get("/stages/redis/{scenario_id}/{stage_type}/{level}", response_model=QuestReadInfo | QuestListenInfo)
 async def get_stage_by_type_with_redis(
     scenario_id:int, stage_type:int, level:int,
     session : SessionDep,
@@ -123,7 +124,7 @@ async def get_stage_by_type_with_redis(
     store = StateStore()
     if not store:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Need to set up redis"
         )
     saved_progress = await store.load_progress_state(current_user.username)
@@ -133,9 +134,11 @@ async def get_stage_by_type_with_redis(
         ## 스테이지가 진행 중인 상태인 경우
         if user_progress.state_type != ProgressState.DONE and user_progress.state_type != ProgressState.REPORT:
             # user_progress.scenario_id == scenario_id and user_progress.stage_type == StageType(stage_type) and \
-            ## 타입 체크, READING/LISTENING 인 경우
-            if _stage_type == StageType.READING or StageType.LISTENING:
-                return QuestReadOrListenInfo.model_validate(user_progress.scenario, from_attributes=True)
+            ## 타입 체크, READING/LISTENING 인 경우(기존의 진행중인 것이 있으면 진행중에 정보 그대로 리턴)
+            if user_progress.stage_type == StageType.READING:
+                return QuestReadInfo.model_validate(user_progress.scenario, from_attributes=True)
+            elif user_progress.stage_type == StageType.LISTENING:
+                return QuestListenInfo.model_validate(user_progress.scenario, from_attributes=True)
         ## WRITING, SPEAKING 인경우 추가 처리 필요
 
     statement = select(Stage).where(
@@ -179,31 +182,40 @@ async def get_stage_by_type_with_redis(
     return quest_info
 
 @router.post("/stage/result/post", response_model=ProgressResult, status_code=status.HTTP_201_CREATED)
-async def register(result: ProgressRLInfo, session: SessionDep):
+async def stage_result(result: ProgressRLInfo, session: SessionDep):
     """
-        Reading, Listening Stage 결과 처리
+        Reading, Listening Stage 결과 처리 ( state type은 디폴트값으로 진행 )
     """
     # Check if user exists
     statement = select(User).where(User.id == result.user_id)
     existing_user = session.exec(statement).first()
     if not existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
     # Check redis
     store = StateStore()
     if not store:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Need to set up Redis"
         )
     saved_progress = await store.load_progress_state(existing_user.username)
     if not saved_progress:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Your Scenario not found"
         )
+    ## scenario id, stage type 체크
+    user_progress = ProgressResponse(**saved_progress)
+    logger.info(user_progress)
+    if user_progress.scenario_id != result.scenario_id or user_progress.stage_type != result.stage_type:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Your Scenario({result.scenario_id}) Stage({result.stage_type}) not found"
+        )    
+    ## 평가 result
     _clear_point = evaluate(EvalutionType.CLEAR_TIME,result.result_time)
     _wrong_point = evaluate(EvalutionType.WRONG_INDEX,len(result.wrong_idx))
     _total_point = _clear_point+_wrong_point
@@ -213,8 +225,6 @@ async def register(result: ProgressRLInfo, session: SessionDep):
         point=_total_point,
         top_percent=0.23 ## 구현 필요 => 해당 시나리오, 스테이지에 대한 완료 결과만 읽어 (소팅인덱스+1)/갯수로 결과 생성
     )
-    user_progress = ProgressResponse(**saved_progress)
-    logger.info(user_progress)
     ## 결과 및 완료 처리
     user_progress.result = _result.model_dump(mode='json')
     user_progress.state_type = ProgressState.DONE

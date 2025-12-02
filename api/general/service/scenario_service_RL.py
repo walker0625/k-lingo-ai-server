@@ -1,34 +1,16 @@
-import ollama
+## READING, LISTENING Scenario
 import random
+import ollama
+from typing import Literal
 from pydantic import BaseModel
-from api.general.scenario import ReadingQuest,ListeningQuest, QuestLevel, StageType
+from db.model.scenario import ReadingQuest,ListeningQuest, QuestLevel, StageType
+from api.general.service.scenario_dto import WordData, TargetItem, TargetData, QuestReadInfo, QuestListenInfo
 from common.ko_util import korean_to_english_pronunciation
 from api.listening.listening_service import ListeningService
 ## logger
 from loguru import logger
 ## tts
 tts = ListeningService()
-
-class WordData(BaseModel):
-    kor: str
-    eng: str
-    pronunciation: str
-class TargetItem(BaseModel):
-    name:str
-    code:str
-class TargetData(BaseModel):
-    word1:TargetItem
-    word2:TargetItem
-class QuestBase(BaseModel):
-    index:int
-    dificulity:QuestLevel
-class QuestReadOrListenInfo(QuestBase):
-    target_data: list[TargetData]
-    correct_answer_index: int
-    word_data1: WordData
-    word_data2: WordData
-    full_data: WordData
-    voice_data: str | None = None
 
 ### quest type, level에 해당하는 quest 정보 가져오기
 def quest_words(quests:list[ReadingQuest | ListeningQuest],_type:str,level:QuestLevel):
@@ -88,7 +70,8 @@ def quest_items(quests:list[BaseModel],_type:str,level:QuestLevel):
         for item in item_zip:
             items.append(TargetItem(code=item[0],name=item[1]))
     return items
-def gen_read_or_listen_quest(stage_type:StageType, quests:list[BaseModel],level:QuestLevel,quest_count:int = 10):
+def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LISTENING],
+        quests:list[BaseModel],level:QuestLevel,quest_count:int = 10):
     """
         quests : read quest list
         level  : quest level
@@ -105,25 +88,48 @@ def gen_read_or_listen_quest(stage_type:StageType, quests:list[BaseModel],level:
     word_data1 = quest_template[stage_type]['word_data1'].format(quest_data[correct_index][0].name)
     word_data2 = quest_template[stage_type]['word_data2'].format(quest_data[correct_index][1].name)
     full_data = quest_template[stage_type]['full_data'].format(quest_data[correct_index][0].name,quest_data[correct_index][1].name)
-    return QuestReadOrListenInfo(
-        index=1,
-        dificulity=level,
-        target_data=target_data,
-        correct_answer_index=correct_index,
-        word_data1=WordData(
-            kor = word_data1,
-            eng = ko_to_en(word_data1),
-            pronunciation=korean_to_english_pronunciation(word_data1)
-        ),
-        word_data2=WordData(
-            kor = word_data2,
-            eng = ko_to_en(word_data2),
-            pronunciation=korean_to_english_pronunciation(word_data2)
-        ),
-        full_data=WordData(
-            kor = full_data,
-            eng = ko_to_en(full_data),
-            pronunciation=korean_to_english_pronunciation(full_data)
-        ),
-        voice_data = None if stage_type == StageType.READING else tts.make_audio_base64_from_text(full_data).audio_base64
-    )
+    if stage_type == StageType.READING:
+        return QuestReadInfo(
+            index=1,
+            dificulity=level,
+            target_data=target_data,
+            correct_answer_index=correct_index,
+            word_data1=WordData(
+                kor = word_data1,
+                eng = ko_to_en(word_data1),
+                pronunciation=korean_to_english_pronunciation(word_data1)
+            ),
+            word_data2=WordData(
+                kor = word_data2,
+                eng = ko_to_en(word_data2),
+                pronunciation=korean_to_english_pronunciation(word_data2)
+            ),
+            full_data=WordData(
+                kor = full_data,
+                eng = ko_to_en(full_data),
+                pronunciation=korean_to_english_pronunciation(full_data)
+            )
+        )
+    else: #if stage_type == StageType.LISTENING:
+        return QuestListenInfo(
+            index=1,
+            dificulity=level,
+            target_data=target_data,
+            correct_answer_index=correct_index,
+            word_data1=WordData(
+                kor = word_data1,
+                eng = ko_to_en(word_data1),
+                pronunciation=korean_to_english_pronunciation(word_data1)
+            ),
+            word_data2=WordData(
+                kor = word_data2,
+                eng = ko_to_en(word_data2),
+                pronunciation=korean_to_english_pronunciation(word_data2)
+            ),
+            full_data=WordData(
+                kor = full_data,
+                eng = ko_to_en(full_data),
+                pronunciation=korean_to_english_pronunciation(full_data)
+            ),
+            voice_data = tts.make_audio_base64_from_text(full_data).audio_base64
+        )

@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from enum import Enum
 from sqlalchemy.types import JSON
 from sqlalchemy import Column
-from .scenario import StageType
+from db.model.scenario import StageType
 
 class ProgressState(Enum):
     INIT = 0    ## 시나리오 스테이지 생성 상태, 시작전
