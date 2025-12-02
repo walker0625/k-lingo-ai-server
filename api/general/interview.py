@@ -1,15 +1,23 @@
 ## Processing user character and equipment purchases
-
+import os
 import random
-from typing import Annotated
+import json
+
+from langchain_openai import ChatOpenAI
+from common.ko_util import korean_to_english_pronunciation
+
+from typing import Annotated, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
+from sqlmodel import Session, select, desc
 from db.session import  SessionDep, get_current_active_user
 from db.model.user import User
 from db.model.interview import (
     Interview, UserInterview, InterviewLevel,
     InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
 )
+
+from api.speaking.speaking_service import SpeakingService
+
 ## logger
 from loguru import logger
 ## user router
@@ -40,9 +48,9 @@ def get_my_interviews(
     ## 2. exclude previous interview list
     sample_list = sampling_interview_list(all_interview_list, user_interview_list)
     return sample_list
- 
+
 @router.post("/answer/post", response_model=list[UserInterviewResponse],
-             status_code=status.HTTP_201_CREATED)
+            status_code=status.HTTP_201_CREATED)
 def add_user_answer(
     answers: list[UserInterviewCreate], session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)]
@@ -91,6 +99,17 @@ def add_user_answer(
             answer = _new_answer.answer,
             created_at = _new_answer.created_at
         ))
+        
+        # 쓰기 / 말하기 문제 생성
+        user_id = answers[0].user_id
+        interview_ids = [answer.interview_id for answer in answers]
+        
+        write_problem_json = get_writing_questions(session, user_id)
+        speaking_problem_json = SpeakingService().generate_speaking_problem(user_id, interview_ids)
+        
+        print(write_problem_json)
+        print(speaking_problem_json)
+        
     return results
 
 @router.get("/get/{level}", response_model=list[InterviewResponse])
@@ -149,3 +168,109 @@ def sampling_interview_list(
         sample_number = sample_number if len(sample_list) >= sample_number else len(sample_list)
         target_list.extend(random.sample(sample_list,sample_number))
     return target_list
+
+
+# =========================================================
+# 쓰기 문제 생성 메서드 (유지)
+# =========================================================
+def _process_single_question(
+    user_int: UserInterview, interview: Interview
+) -> Dict[str, Any]:
+    
+    openai_key = os.getenv("OPENAI_API_KEY")
+    
+    llm = ChatOpenAI(
+        model="gpt-4o", 
+        temperature=0, 
+        api_key=openai_key,
+        # 아래 model_kwargs를 사용하면 LLM이 JSON을 출력하도록 강제됩니다.
+        model_kwargs={"response_format": {"type": "json_object"}}
+    )
+    
+    """
+    개별 질문 처리: 발음과 번역을 생성 (동기 함수)
+    """
+    kor_q = interview.kor if interview.kor else ""
+    eng_q = interview.eng if interview.eng else ""
+    eng_ans = user_int.answer if user_int.answer else ""
+    
+    prompt = f"""
+        You are a Korean language tutor.
+
+        Input Data:
+        - Korean Question: "{kor_q}"
+        - User's Answer (English): "{eng_ans}"      
+        Task:
+        1. Translate the "User's Answer" into natural, polite Korean (Honorifics).      
+        Output Format (JSON only, no markdown):
+        {{
+                    "answer_kor": "..."
+        }}
+        """
+
+    response = llm.invoke(prompt)
+    content = response.content.strip()
+    
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0].strip()
+    elif "```" in content:
+        content = content.split("```")[1].split("```")[0].strip()
+    
+    llm_result = json.loads(content)
+    
+    result_data = {
+        "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": ""},
+        "answer": eng_ans,
+        "answer_kor": ""
+    }
+    
+    result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
+    
+    try:
+        result_data["word_data"]["pronunciation"] = korean_to_english_pronunciation(kor_q)
+    except NameError:
+        # korean_to_english_pronunciation 함수가 정의되지 않은 경우를 대비
+        result_data["word_data"]["pronunciation"] = f"Pronunciation for: {kor_q}" 
+        
+    return result_data
+
+def get_writing_questions(
+    session: Session, user_id: int
+) -> Dict[str, Any]:
+    """
+    쓰기 문제 생성 (동기 함수로 변환)
+    """
+    print(f"\n{'='*60}")
+    print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
+    try:
+        # 1. DB 쿼리: created_at 기준 내림차순
+        statement = (
+            select(UserInterview, Interview)
+            .join(Interview, UserInterview.interview_id == Interview.id)
+            .where(UserInterview.user_id == user_id)
+            .order_by(desc(UserInterview.created_at))
+            .limit(5)
+        )
+        
+        # 동기 세션에서 쿼리 실행 (session.exec().all()은 동기적으로 결과를 반환)
+        results = session.exec(statement).all()
+        
+        if not results:
+            print(f"✅ User ID {user_id}에 대한 결과 없음")
+            return {"user_id": user_id, "question": []}
+            
+        # 2. 순차적 동기 처리
+        processed_questions = []
+        for user_int, interview in results:
+            processed_questions.append(
+                _process_single_question(user_int, interview)
+            )
+            
+        print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
+        return {"user_id": user_id, "question": processed_questions}
+        
+    except Exception as e:
+        print(f"❌ 서버 에러: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"user_id": user_id, "question": []}
