@@ -1,12 +1,21 @@
-import os, requests, json, time, io, numpy as np, ollama, random
+import os
+import json
+import asyncio
+import requests
+import time
+import io
+import numpy as np
 from datetime import datetime
+from typing import Dict, Any
 from PIL import Image
 from paddleocr import PaddleOCR
 from dotenv import load_dotenv
 
-# 쓰기 문제 생성용 추가
+# 쓰기 문제 생성용
 from langchain_openai import ChatOpenAI
-from sqlmodel import Session, select
+from sqlmodel import Session, select, desc
+
+# DB 모델
 from db.model.interview import Interview, UserInterview
 
 load_dotenv()
@@ -14,7 +23,9 @@ load_dotenv()
 
 class WriteService:
     def __init__(self):
-        # PaddleOCR 로딩
+        print("🔧 WriteService 초기화 시작...")
+
+        # 1. PaddleOCR 초기화 (글자 인식용 - 복구됨)
         try:
             self.paddle = PaddleOCR(
                 lang="korean",
@@ -24,17 +35,34 @@ class WriteService:
                 use_angle_cls=True,
                 ocr_version="PP-OCRv4",
             )
-        except:
+            print("✅ PaddleOCR 초기화 성공")
+        except Exception as e:
+            print(f"⚠️ PaddleOCR 초기화 실패: {e}")
             self.paddle = None
 
         self.naver_url = os.getenv("NAVER_OCR_URL")
         self.naver_key = os.getenv("NAVER_SECRET_KEY")
-        self.ollama_model = "hf.co/LGAI-EXAONE/EXAONE-4.0-1.2B-GGUF:Q4_K_M"
-        
-        # LLM 추가 (쓰기 문제 번역용)
-        self.llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
+        # 2. LLM 초기화 (번역 및 발음 생성용)
+        try:
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                print("⚠️ OPENAI_API_KEY가 없습니다.")
+                self.llm = None
+            else:
+                self.llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=openai_key)
+                print("✅ ChatOpenAI 초기화 성공")
+        except Exception as e:
+            print(f"❌ ChatOpenAI 초기화 실패: {e}")
+            self.llm = None
+
+        print("✅ WriteService 초기화 완료")
+
+    # =========================================================
+    # OCR 관련 메서드 (글자 인식 기능 복구)
+    # =========================================================
     def run_naver(self, file_bytes, filename):
+        """네이버 OCR 호출"""
         try:
             data = {
                 "images": [{"format": "jpg", "name": "demo"}],
@@ -56,36 +84,29 @@ class WriteService:
                 for f in img.get("fields", [])
             ]
             return " ".join(texts)
-        except:
+        except Exception as e:
+            print(f"❌ Naver OCR 실패: {e}")
             return "Naver OCR 실패"
 
     def run_paddle(self, file_bytes):
+        """PaddleOCR 호출"""
         if not self.paddle:
             return "Paddle 모델 없음"
-        img = np.array(Image.open(io.BytesIO(file_bytes)).convert("RGB"))
-        # cls=False로 설정해야 더 빠르고 조용함
-        result = self.paddle.ocr(img, cls=False)
-        if not result or not result[0]:
-            return ""
-        return " ".join([line[1][0] for line in result[0]])
-
-    def run_check(self, text, question):
         try:
-            res = ollama.chat(
-                model=self.ollama_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "질문에 예/아니오로 답하고 이유를 설명해.",
-                    },
-                    {"role": "user", "content": f"내용: {text}\n질문: {question}"},
-                ],
-            )
-            return res["message"]["content"]
-        except:
-            return "AI 응답 실패"
+            img = np.array(Image.open(io.BytesIO(file_bytes)).convert("RGB"))
+            result = self.paddle.ocr(img, cls=False)
+            if not result or not result[0]:
+                return ""
+            return " ".join([line[1][0] for line in result[0]])
+        except Exception as e:
+            print(f"❌ Paddle OCR 실패: {e}")
+            return ""
 
     async def process_immigration(self, file, mode="naver"):
+        """
+        [수정됨] 이미지에서 텍스트만 추출합니다.
+        (기존의 ollama validation 로직은 제거했습니다.)
+        """
         content = await file.read()
 
         if mode == "paddle":
@@ -93,94 +114,109 @@ class WriteService:
         else:
             text = self.run_naver(content, file.filename)
 
-        questions = [
-            "양식이 맞나요?",
-            "이름과 서명이 있나요?",
-            "한글이나 영어로 적혔나요?",
-        ]
-        validations = [
-            {"question": q, "answer": self.run_check(text, q)} for q in questions
-        ]
+        # 검증(Validation) 로직 삭제됨 -> 오직 텍스트만 반환
+        return {"mode": mode, "text": text}
 
-        return {"mode": mode, "text": text, "validations": validations}
-    
-    # ============================================
-    # 쓰기 문제 생성 메서드 (NEW)
-    # ============================================
-    
-    async def translate_to_korean(self, english_answer: str, korean_question: str) -> str:
-        """영어 답변을 한글로 번역"""
-        prompt = f"""
-당신은 전문 번역가입니다.
+    # =========================================================
+    # 쓰기 문제 생성 메서드 (유지)
+    # =========================================================
+    async def _process_single_question(
+        self, user_int: UserInterview, interview: Interview
+    ) -> Dict[str, Any]:
+        """
+        개별 질문 처리: LLM을 호출하여 발음과 번역을 생성
+        """
+        kor_q = interview.kor if interview.kor else ""
+        eng_q = interview.eng if interview.eng else ""
+        eng_ans = user_int.answer if user_int.answer else ""
 
-질문: {korean_question}
-영어 답변: {english_answer}
+        result_data = {
+            "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": ""},
+            "answer": eng_ans,
+            "answer_kor": "",
+        }
 
-위 영어 답변을 자연스러운 한국어로 번역하세요.
-정중한 표현(존댓말)을 사용하세요.
+        if not self.llm or not eng_ans:
+            return result_data
 
-번역된 한국어만 출력하세요:
-"""
         try:
+            prompt = f"""
+            You are a Korean language tutor.
+            
+            Input Data:
+            - Korean Question: "{kor_q}"
+            - User's Answer (English): "{eng_ans}"
+
+            Task:
+            1. Provide the Romanized pronunciation of the "Korean Question". 
+               (Use standard Romanization, reflect sound changes like 'hap-ni-da' instead of 'hab-ni-da').
+            2. Translate the "User's Answer" into natural, polite Korean (Honorifics).
+
+            Output Format (JSON only, no markdown):
+            {{
+                "pronunciation": "...", 
+                "answer_kor": "..."
+            }}
+            """
+
             response = await self.llm.ainvoke(prompt)
-            return response.content.strip()
+            content = response.content.strip()
+
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            llm_result = json.loads(content)
+
+            result_data["word_data"]["pronunciation"] = llm_result.get(
+                "pronunciation", ""
+            )
+            result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
+
         except Exception as e:
-            print(f"[Translation Error] {e}")
-            return "[번역 실패]"
-    
-    async def get_writing_questions(self, session: Session, user_id: int):
-        """쓰기 문제 생성: 사용자가 답변한 질문 중 5개 랜덤 + 답변 번역"""
-        
+            print(f"⚠️ LLM 처리 실패 (ID: {user_int.id}): {e}")
+            result_data["answer_kor"] = eng_ans
+
+        return result_data
+
+    async def get_writing_questions(
+        self, session: Session, user_id: int
+    ) -> Dict[str, Any]:
+
+        print(f"\n{'='*60}")
+        print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
+
         try:
-            # 1. 사용자가 답변한 데이터 조회
+            # 1. DB 쿼리: created_at 기준 내림차순
             statement = (
-                select(
-                    UserInterview.interview_id,
-                    Interview.kor,
-                    Interview.eng,
-                    UserInterview.answer
-                )
+                select(UserInterview, Interview)
                 .join(Interview, UserInterview.interview_id == Interview.id)
                 .where(UserInterview.user_id == user_id)
+                .order_by(desc(UserInterview.created_at))
+                .limit(5)
             )
+
             results = session.exec(statement).all()
-            
+
             if not results:
-                return {
-                    "status": "error",
-                    "message": "사전 인터뷰 이력이 없습니다."
-                }
-            
-            # 2. 랜덤 5개 선택
-            selected = random.sample(list(results), min(5, len(results)))
-            
-            # 3. 영어 답변 → 한글 번역
-            questions = []
-            for row in selected:
-                korean_answer = await self.translate_to_korean(
-                    english_answer=row.answer,
-                    korean_question=row.kor
-                )
-                
-                questions.append({
-                    "interview_id": row.interview_id,
-                    "korean_question": row.kor,
-                    "english_question": row.eng,
-                    "expected_answer": korean_answer  # 예상 답변 (한글)
-                })
-            
-            return {
-                "status": "success",
-                "user_id": user_id,
-                "total_questions": len(questions),
-                "questions": questions
-            }
-            
+                return {"user_id": user_id, "question": []}
+
+            # 2. 병렬 처리
+            tasks = [
+                self._process_single_question(user_int, interview)
+                for user_int, interview in results
+            ]
+
+            processed_questions = await asyncio.gather(*tasks)
+
+            print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
+
+            return {"user_id": user_id, "question": processed_questions}
+
         except Exception as e:
-            print(f"[Get Writing Questions Error] {e}")
+            print(f"❌ 서버 에러: {e}")
             import traceback
+
             traceback.print_exc()
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"user_id": user_id, "question": []}
