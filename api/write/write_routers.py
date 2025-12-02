@@ -1,85 +1,222 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from enum import Enum
-from typing import List
+import os
+import json
+import asyncio
+import requests
+import time
+import io
+import numpy as np
+from datetime import datetime
+from typing import Dict, Any, List
+from PIL import Image
+from paddleocr import PaddleOCR
+from dotenv import load_dotenv
 
-from .dto.write_dto import (
-    ImmigrationFormValidation,
-    OCRResponse,
-)
-from .write_service import WriteService
-from api.write.write_agent import WriteAgent
+# 쓰기 문제 생성용
+from langchain_openai import ChatOpenAI
+from sqlmodel import Session, select, desc
 
-router = APIRouter(tags=["write"])
+# DB 모델
+from db.model.interview import Interview, UserInterview
 
-service = WriteService()
-write_agent = WriteAgent()
-
-ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"}
-
-
-class OCRType(str, Enum):
-    PADDLE = "paddle"
-    NAVER = "naver"
-
-
-# 이미지 확장자 검사 (True/False 반환)
-def is_valid_image(filename: str):
-    if not filename:
-        return False
-    ext = filename.split(".")[-1].lower()
-    return ext in ALLOWED_EXTENSIONS
+load_dotenv()
 
 
-@router.post("/ocr/extract", response_model=List[OCRResponse])
-async def extract_text(
-    files: List[UploadFile] = File(...),  # 무조건 리스트로 받음
-    mode: OCRType = OCRType.PADDLE,
-):
-    """
-    [통합 OCR] 이미지를 1장 또는 여러 장 업로드하면, 텍스트를 추출해서 리스트로 돌려줍니다.
-    """
-    results = []
+class WriteService:
+    def __init__(self):
+        print("🔧 WriteService 초기화 시작...")
 
-    for file in files:
-        if not is_valid_image(file.filename):
-            results.append(
-                {
-                    "filename": file.filename,
-                    "text": "",
-                    "error": "지원하지 않는 파일 형식",
-                }
+        # 1. PaddleOCR 초기화 (글자 인식용 - 복구됨)
+        try:
+            self.paddle = PaddleOCR(
+                lang="korean",
+                show_log=False,
+                enable_mkldnn=False,
+                use_gpu=False,
+                use_angle_cls=True,
+                ocr_version="PP-OCRv4",
             )
-            continue
+            print("✅ PaddleOCR 초기화 성공")
+        except Exception as e:
+            print(f"⚠️ PaddleOCR 초기화 실패: {e}")
+            self.paddle = None
+
+        self.naver_url = os.getenv("NAVER_OCR_URL")
+        self.naver_key = os.getenv("NAVER_SECRET_KEY")
+
+        # 2. LLM 초기화 (번역 및 발음 생성용)
+        try:
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                print("⚠️ OPENAI_API_KEY가 없습니다.")
+                self.llm = None
+            else:
+                self.llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=openai_key)
+                print("✅ ChatOpenAI 초기화 성공")
+        except Exception as e:
+            print(f"❌ ChatOpenAI 초기화 실패: {e}")
+            self.llm = None
+
+        print("✅ WriteService 초기화 완료")
+
+    # =========================================================
+    # OCR 관련 메서드
+    # =========================================================
+    def run_naver(self, file_bytes, filename):
+        """네이버 OCR 호출"""
+        try:
+            data = {
+                "images": [{"format": "jpg", "name": "demo"}],
+                "requestId": datetime.now().strftime("%Y%m%d_%H%M%S"),
+                "version": "V2",
+                "timestamp": int(time.time() * 1000),
+            }
+            headers = {"X-OCR-SECRET": self.naver_key}
+            resp = requests.post(
+                self.naver_url,
+                headers=headers,
+                data={"message": json.dumps(data)},
+                files=[("file", (filename, file_bytes))],
+            )
+
+            texts = [
+                f["inferText"]
+                for img in resp.json().get("images", [])
+                for f in img.get("fields", [])
+            ]
+            return " ".join(texts)
+        except Exception as e:
+            print(f"❌ Naver OCR 실패: {e}")
+            return "Naver OCR 실패"
+
+    def run_paddle(self, file_bytes):
+        """PaddleOCR 호출"""
+        if not self.paddle:
+            return "Paddle 모델 없음"
+        try:
+            img = np.array(Image.open(io.BytesIO(file_bytes)).convert("RGB"))
+            result = self.paddle.ocr(img, cls=False)
+            if not result or not result[0]:
+                return ""
+            return " ".join([line[1][0] for line in result[0]])
+        except Exception as e:
+            print(f"❌ Paddle OCR 실패: {e}")
+            return ""
+
+    async def process_immigration(self, file, mode="naver"):
+        """
+        [수정됨] 이미지에서 텍스트만 추출합니다.
+        (기존의 ollama validation 로직은 제거했습니다.)
+        """
+        content = await file.read()
+
+        if mode == "paddle":
+            text = self.run_paddle(content)
+        else:
+            text = self.run_naver(content, file.filename)
+
+        # 검증(Validation) 로직 삭제됨 -> 오직 텍스트만 반환
+        return {"mode": mode, "text": text}
+
+    # =========================================================
+    # 쓰기 문제 생성 메서드
+    # =========================================================
+    async def _process_single_question(
+        self, user_int: UserInterview, interview: Interview
+    ) -> Dict[str, Any]:
+        """
+        개별 질문 처리: LLM을 호출하여 발음과 번역을 생성
+        """
+        kor_q = interview.kor if interview.kor else ""
+        eng_q = interview.eng if interview.eng else ""
+        eng_ans = user_int.answer if user_int.answer else ""
+
+        result_data = {
+            "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": ""},
+            "answer": eng_ans,
+            "answer_kor": "",
+        }
+
+        if not self.llm or not eng_ans:
+            return result_data
 
         try:
-            await file.seek(0)
-            result_data = await service.process_immigration(file, mode.value)
+            prompt = f"""
+            You are a Korean language tutor.
+            
+            Input Data:
+            - Korean Question: "{kor_q}"
+            - User's Answer (English): "{eng_ans}"
 
-            results.append(
-                {"filename": file.filename, "text": result_data["text"], "error": None}
+            Task:
+            1. Provide the Romanized pronunciation of the "Korean Question". 
+               (Use standard Romanization, reflect sound changes like 'hap-ni-da' instead of 'hab-ni-da').
+            2. Translate the "User's Answer" into natural, polite Korean (Honorifics).
+
+            Output Format (JSON only, no markdown):
+            {{
+                "pronunciation": "...", 
+                "answer_kor": "..."
+            }}
+            """
+
+            response = await self.llm.ainvoke(prompt)
+            content = response.content.strip()
+
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+
+            llm_result = json.loads(content)
+
+            result_data["word_data"]["pronunciation"] = llm_result.get(
+                "pronunciation", ""
             )
+            result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
 
         except Exception as e:
-            print(f"⚠️ [OCR Error] {file.filename}: {e}")
-            results.append({"filename": file.filename, "text": "", "error": str(e)})
+            print(f"⚠️ LLM 처리 실패 (ID: {user_int.id}): {e}")
+            result_data["answer_kor"] = eng_ans
 
-    return results
+        return result_data
 
+    async def get_writing_questions(
+        self, session: Session, user_id: int
+    ) -> Dict[str, Any]:
 
-@router.post("/immigration/validate", response_model=ImmigrationFormValidation)
-async def validate_immigration_form(
-    file: UploadFile = File(...), mode: OCRType = OCRType.PADDLE
-):
-    """
-    [입국신고서 검증]
-    업로드된 입국신고서 이미지를 OCR로 분석하고, 기재된 내용이 규칙에 맞는지 검증합니다.
-    필수 항목 누락이나 잘못된 형식 등을 체크하여 결과를 반환합니다.
-    """
-    if not is_valid_image(file.filename):
-        raise HTTPException(status_code=400, detail="지원하지 않는 파일입니다.")
+        print(f"\n{'='*60}")
+        print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
 
-    try:
-        return await service.process_immigration(file, mode.value)
-    except Exception as e:
-        print(f"[Validation Error] {str(e)}")
-        raise HTTPException(status_code=500, detail=f"검증 오류: {str(e)}")
+        try:
+            # 1. DB 쿼리: created_at 기준 내림차순
+            statement = (
+                select(UserInterview, Interview)
+                .join(Interview, UserInterview.interview_id == Interview.id)
+                .where(UserInterview.user_id == user_id)
+                .order_by(desc(UserInterview.created_at))
+                .limit(5)
+            )
+
+            results = session.exec(statement).all()
+
+            if not results:
+                return {"user_id": user_id, "question": []}
+
+            # 2. 병렬 처리
+            tasks = [
+                self._process_single_question(user_int, interview)
+                for user_int, interview in results
+            ]
+
+            processed_questions = await asyncio.gather(*tasks)
+
+            print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
+
+            return {"user_id": user_id, "question": processed_questions}
+
+        except Exception as e:
+            print(f"❌ 서버 에러: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return {"user_id": user_id, "question": []}
