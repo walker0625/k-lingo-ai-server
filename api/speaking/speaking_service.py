@@ -3,32 +3,53 @@ import io
 import os
 import uuid
 import shutil
+import json 
+from typing import List, Dict, Any
 import soundfile as sf
-# 💡 transformers, pipeline import는 함수 내부로 옮겨 초기 로딩을 방지합니다.
 
 from common.path import INPUT_DIR
+from common.ko_util import korean_to_english_pronunciation
+
 from fastapi import UploadFile, HTTPException
+from sqlmodel import create_engine, Session, select
+
+from db.model.user import User
+from db.model.character import Character 
+from db.model.user_store import UserCharacter
+from db.model.interview import (
+    Interview, UserInterview, InterviewLevel,
+    InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
+)
 
 from api.chat.chat_service import ChatService
+from api.listening.listening_service import ListeningService
 from api.speaking.dto.speaking_dto import SpeakingResponse
 
 logger = logging.getLogger(__name__)
 
+DATABASE_URL="postgresql://klingo:klingo@100.100.53.32:5432/k-lingo"
+engine = create_engine(DATABASE_URL)
+
+from sqlmodel import SQLModel
+
+try:
+    SQLModel.metadata.create_all(engine)
+except Exception as e:
+    logger.warning(f"SQLModel create_all warning (expected if tables exist): {e}")
+
 class SpeakingService:
-    # 💡 클래스 변수를 사용하여 모델과 ChatService를 싱글톤으로 관리
     _asr_pipeline = None 
     _chat_service = None
     
     def __init__(self):
-        # 인스턴스 변수에 싱글톤 객체 할당
         self.pipe = self._get_pipeline()
         self.chat_service = self._get_chat_service()
     
-    # 💡 ASR 파이프라인을 최초 요청 시 로드하는 Lazy Singleton 메서드
+    # 최초 요청 시 로드하는 Lazy Singleton 메서드
     @classmethod
     def _get_pipeline(cls):
         if cls._asr_pipeline is None:
-            # 🛑 이 블록이 실행될 때야 비로소 torch 로딩이 발생합니다.
+            # 🛑 이 블록이 실행될 때야 비로소 torch 로딩이 발생
             
             # 💡 모델 로딩이 필요한 시점에야 import 실행 (Lazy Loading)
             from transformers import pipeline
@@ -45,6 +66,7 @@ class SpeakingService:
                     model="seastar105/whisper-small-komixv2",
                     device=device 
                 )
+                
                 logger.info("ASR Pipeline successfully loaded.")
             except Exception as e:
                 logger.error(f"FATAL ASR LOAD ERROR during lazy load: {e}")
@@ -91,5 +113,57 @@ class SpeakingService:
             logger.error(f"오디오 파일 읽기 실패: {e}")
             raise HTTPException(400, "유효하지 않은 WAV 파일입니다")
         finally:
-             if os.path.exists(file_path):
-                 os.remove(file_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                
+    def generate_speaking_problem(self, user_id: int, interview_ids: List[int]) -> str:
+
+        audio_data_list = []
+
+        with Session(engine) as session:
+
+            # 1. 쿼리 실행: ID 리스트에 해당하는 모든 인터뷰 항목을 조회
+            statement = select(Interview).where(Interview.id.in_(interview_ids))
+            interviews = session.exec(statement).all() 
+
+            # 2. 결과가 없을 경우 예외 처리
+            if not interviews:
+                print("Error: Interview IDs not found or list is empty.")
+                raise HTTPException(status_code=500, detail="No interviews found for the provided IDs.")
+
+            # 3. 반복문 내에서 각 항목을 처리하고 결과를 리스트에 추가
+            for interview in interviews:
+                try:
+                    # 3-1. TTS (Text-to-Speech) 서비스 호출
+                    service = ListeningService() 
+                    response = service.make_audio_base64_from_text(interview.kor)
+
+                    # 3-2. 한국어 발음 표기 생성 (korean_to_english_pronunciation 함수 사용)
+                    pronunciation = korean_to_english_pronunciation(interview.kor)
+
+                    # 3-3. 각 항목을 원하는 JSON 'audio' 리스트의 형태로 가공
+                    audio_item = {
+                        "kor": interview.kor,
+                        "eng": interview.eng,
+                        "pronunciation": pronunciation,
+                        "base64": response.audio_base64
+                    }
+
+                    audio_data_list.append(audio_item)
+
+                    print(f"Processed: {interview.kor}")
+
+                except Exception as e:
+                    # 서비스 호출 중 발생하는 예외 처리
+                    print(f"Error processing interview ID {interview.id}: {e}")
+                    continue # 문제 발생 항목은 건너뛰고 다음 항목으로 진행
+
+        # 4. 최종 JSON 구조 생성
+        final_json_data = {
+            "user_id": user_id,
+            "audio": audio_data_list
+        }
+
+        # 5. 딕셔너리를 JSON 문자열로 변환하여 반환
+        # ensure_ascii=False는 한글이 깨지지 않도록 합니다.
+        return json.dumps(final_json_data, ensure_ascii=False)
