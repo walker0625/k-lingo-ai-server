@@ -10,7 +10,7 @@ from api.listening.listening_service import ListeningService
 logger = logging.getLogger("__name__")
 router = APIRouter()
 
-@router.post('/audio', response_model=ListeningResponse, status_code=status.HTTP_200_OK)
+@router.post('/audios', response_model=ListeningResponse, status_code=status.HTTP_200_OK)
 def make_audio_base64_from_text(audio_text: str) -> ListeningResponse:
 
     try:

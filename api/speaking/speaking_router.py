@@ -11,7 +11,7 @@ from api.speaking.speaking_service import SpeakingService # 💡 import는 유�
 logger = logging.getLogger("__name__")
 router = APIRouter()
 
-@router.post('/questions', response_model=SpeakingResponse, status_code=status.HTTP_200_OK)
+@router.post('/judges', response_model=SpeakingResponse, status_code=status.HTTP_200_OK)
 def listen_speaking_and_judge(question: str, audio: UploadFile = File(...)) -> SpeakingResponse:
     
     try:

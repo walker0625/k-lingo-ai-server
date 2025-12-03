@@ -10,7 +10,7 @@ from api.chat.dto.chat_dto import ChatRequest, ChatResponse
 logger = logging.getLogger("__name__")
 router = APIRouter()
 
-@router.post('/questions', response_model=ChatResponse, status_code=status.HTTP_200_OK)
+@router.post('/answers', response_model=ChatResponse, status_code=status.HTTP_200_OK)
 def ask_question(request: ChatRequest, session: SessionDep) -> ChatResponse:
     
     try:
