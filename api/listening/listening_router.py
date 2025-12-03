@@ -1,13 +1,10 @@
-import logging
-
-from fastapi import APIRouter, HTTPException, status, File, UploadFile
-
-from db.session import  SessionDep
+from fastapi import APIRouter, HTTPException, status
 
 from api.listening.dto.listening_dto import ListeningResponse
 from api.listening.listening_service import ListeningService
+## logger
+from loguru import logger
 
-logger = logging.getLogger("__name__")
 router = APIRouter()
 
 @router.post('/audios', response_model=ListeningResponse, status_code=status.HTTP_200_OK)

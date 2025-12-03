@@ -2,9 +2,9 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 from db.session import  SessionDep, get_user_by_username
+from db.model.user_store import UserCharacter, UserCharacterCreate, UserCharacterResponse
 from db.model.user import User
 from db.model.character import CharacterResponse
-from db.model.user_store import UserCharacter, UserCharacterCreate, UserCharacterResponse
 ## logger
 from loguru import logger
 ## user router

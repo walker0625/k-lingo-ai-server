@@ -31,16 +31,16 @@ class StateStore:
         사용 : store = StateStore(), store.save_...
     """
     _instance = None
-    redis_store: redis.Redis | None = None
     def __new__(cls, *args, **kwargs):
         ## instance 생성용
-        if cls.redis_store is None:
+        if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls.redis_store = None
         return cls._instance
     
     def __init__(self) -> None:
-        if StateStore.redis_store is None:
-            StateStore.redis_store = redis.Redis(
+        if self.redis_store is None:
+            self.redis_store = redis.Redis(
                 host=REDIS_HOST,
                 port=REDIS_PORT,
                 decode_responses=True
@@ -63,8 +63,8 @@ class StateStore:
         """
             페이지:키 정보 이용 상태 정보 저장
         """
-        if StateStore.redis_store:
-            await StateStore.redis_store.set(
+        if self.redis_store:
+            await self.redis_store.set(
                 f"{page}:{key}", 
                 state_data,
                 REDIS_EXPIRE_SECOND
@@ -74,8 +74,8 @@ class StateStore:
         """
             페이지:키 정보 이용 상태 정보 가져오기
         """
-        if StateStore.redis_store:
-            data = await StateStore.redis_store.get(f"{page}:{key}")
+        if self.redis_store:
+            data = await self.redis_store.get(f"{page}:{key}")
             if data:
                 return data
         return "{}"

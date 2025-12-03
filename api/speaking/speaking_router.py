@@ -1,14 +1,10 @@
 # api/speaking/speaking_router.py
-
-import logging
 from fastapi import APIRouter, HTTPException, status, File, UploadFile
-
-from db.session import SessionDep # 필요하지 않다면 제거 가능
 
 from api.speaking.dto.speaking_dto import SpeakingResponse
 from api.speaking.speaking_service import SpeakingService # 💡 import는 유지
-
-logger = logging.getLogger("__name__")
+## logger
+from loguru import logger
 router = APIRouter()
 
 @router.post('/judges', response_model=SpeakingResponse, status_code=status.HTTP_200_OK)

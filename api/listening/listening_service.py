@@ -1,5 +1,3 @@
-import logging
-
 import os
 import uuid
 import wave
@@ -13,8 +11,8 @@ from elevenlabs.client import ElevenLabs
 
 from api.chat.chat_service import ChatService
 from api.listening.dto.listening_dto import ListeningResponse
-
-logger = logging.getLogger(__name__)
+## logger
+from loguru import logger
 
 class ListeningService:
     
