@@ -12,13 +12,13 @@ logger = logging.getLogger("__name__")
 router = APIRouter()
 
 @router.post('/questions', response_model=SpeakingResponse, status_code=status.HTTP_200_OK)
-def listen_speaking_and_answer(audio: UploadFile = File(...)) -> SpeakingResponse:
-
+def listen_speaking_and_judge(question: str, audio: UploadFile = File(...)) -> SpeakingResponse:
+    
     try:
-        # 💡 요청이 들어올 때마다 SpeakingService 인스턴스 생성
-        #    (내부적으로 모델 로딩은 __init__에서 한 번만 발생)
+        #💡 요청이 들어올 때마다 SpeakingService 인스턴스 생성
+        #   (내부적으로 모델 로딩은 __init__에서 한 번만 발생)
         service = SpeakingService() 
-        response = service.listen_speaking_and_answer(audio)
+        response = service.listen_speaking_and_judge(question, audio)
         
         return response
     

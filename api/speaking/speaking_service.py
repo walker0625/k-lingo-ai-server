@@ -13,6 +13,10 @@ from common.ko_util import korean_to_english_pronunciation
 from fastapi import UploadFile, HTTPException
 from sqlmodel import create_engine, Session, select
 
+from langchain_community.chat_models import ChatOllama
+from agent.judge.workflow import create_assessment_graph
+from agent.judge.states import AssessmentState
+
 from db.model.user import User
 from db.model.character import Character 
 from db.model.user_store import UserCharacter
@@ -21,7 +25,6 @@ from db.model.interview import (
     InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
 )
 
-from api.chat.chat_service import ChatService
 from api.listening.listening_service import ListeningService
 from api.speaking.dto.speaking_dto import SpeakingResponse
 
@@ -39,17 +42,14 @@ except Exception as e:
 
 class SpeakingService:
     _asr_pipeline = None 
-    _chat_service = None
     
     def __init__(self):
         self.pipe = self._get_pipeline()
-        self.chat_service = self._get_chat_service()
     
     # 최초 요청 시 로드하는 Lazy Singleton 메서드
     @classmethod
     def _get_pipeline(cls):
         if cls._asr_pipeline is None:
-            # 🛑 이 블록이 실행될 때야 비로소 torch 로딩이 발생
             
             # 💡 모델 로딩이 필요한 시점에야 import 실행 (Lazy Loading)
             from transformers import pipeline
@@ -74,17 +74,7 @@ class SpeakingService:
 
         return cls._asr_pipeline
 
-    # 💡 ChatService 싱글톤 관리를 위한 메서드
-    @classmethod
-    def _get_chat_service(cls):
-        if cls._chat_service is None:
-            cls._chat_service = ChatService()
-        return cls._chat_service
-
-    def listen_speaking_and_answer(self, audio_file: UploadFile) -> SpeakingResponse:
-        
-        if audio_file.content_type != "audio/wav":
-            raise HTTPException(400, "WAV 파일만 지원합니다")
+    def listen_speaking_and_judge(self, question, audio_file: UploadFile) -> SpeakingResponse:
         
         file_name = 'speaking_' + str(uuid.uuid4()) + '.wav'
         file_path = os.path.join(INPUT_DIR, file_name)
@@ -103,11 +93,23 @@ class SpeakingService:
             
             # 💡 싱글톤 self.pipe 사용 (이미 __init__에서 할당됨)
             result = self.pipe(audio_array)
+            answer = result['text']
             
-            # TODO prompt 공통화 및 파일 관리 필요
-            answer = self.chat_service.ask_question(system_prompt='너는 입국 심사관이야' , user_prompt=result['text'])
+            assessment_data = self.judge_speaking(question, answer)
             
-            return SpeakingResponse(answer=answer)
+            grammar_score = assessment_data.get('grammar_result', {}).get('score')
+            context_score = assessment_data.get('context_result', {}).get('context_score')
+            final_overall_score = assessment_data.get('score_result', {}).get('score')
+            final_feedback = assessment_data.get('final_feedback')
+            
+            response_object = SpeakingResponse(
+                grammar_score=grammar_score,
+                context_score=context_score,
+                final_overall_score=final_overall_score,
+                final_feedback=final_feedback
+            )
+            
+            return response_object
             
         except sf.LibsndfileError as e:
             logger.error(f"오디오 파일 읽기 실패: {e}")
@@ -167,3 +169,71 @@ class SpeakingService:
         # 5. 딕셔너리를 JSON 문자열로 변환하여 반환
         # ensure_ascii=False는 한글이 깨지지 않도록 합니다.
         return json.dumps(final_json_data, ensure_ascii=False)
+    
+    def judge_speaking(self, question: str, answer: str) -> SpeakingResponse:
+        
+        # 1. LLM 설정 (JSON 모드 및 낮은 온도 설정)
+        try:
+            # EXAONE 모델 사용 시 Ollama 호환성 및 JSON 모드 필수
+            llm = ChatOllama(
+                # qwen:14b-chat - 제미나이 추천
+                # llama3:8b-instruct-q4_K_M - 제미나이 추천
+                # qwen3-vl:8b - 응답이 없음 : 양자화 모델 변경 test           
+                # deepseek-r1:8b - 응답이 없음 : 양자화 모델 변경 test           
+                model="llama3:8b-instruct-q4_K_M",
+                format="json",
+                temperature=0.0,
+                num_gpu=-1 # -1 : gpu 사용하도록 설정 / 0 : cpu 사용하도록 설정
+            )
+        except Exception as e:
+            logger.error(f"❌ LLM 설정 실패: Ollama 서버가 실행 중인지, 모델이 설치되었는지 확인하세요. 에러: {e}")
+            return
+
+        # 2. 그래프 생성
+        app = create_assessment_graph(llm)
+
+        # 3. 입력 데이터 (AssessmentState의 모든 키를 포함하도록 초기화)
+        inputs: AssessmentState = {
+            "question": question,
+            "user_text": answer,
+            "context": "입국 심사",
+            "target_level": 1, # TODO 동적으로 발화 레벨 추후 조정
+
+            # [디버깅 핵심] 모든 상태를 None/초기값으로 명시
+            "grammar_result": None,
+            "context_result": None,
+            "score_result": None,
+            "final_feedback": None,
+            "next_worker": None,
+            "revision_count": 0
+        }
+
+        logger.info("========================================")
+        logger.info("🚀 K-Lingo 평가 에이전트 실행 중...")
+        logger.info(f"사용자 입력: {inputs['user_text']} (목표 {inputs['target_level']}급)")
+        logger.info("========================================")
+
+        # 4. 실행 및 결과 출력
+        result = None
+        
+        try:
+            # recursion_limit을 설정하여 무한 루프 시 강제 종료 (디버깅에 도움)
+            result = app.invoke(inputs, config={"recursion_limit": 30}) 
+
+            # 결과 출력 시 .get() 메서드를 사용하여 KeyError 방지
+            final_score = result.get('score_result', {}).get('score', 'N/A')
+            final_feedback = result.get('final_feedback', '피드백이 생성되지 않음')
+
+            logger.info("========================================")
+            logger.info(f"✅ 최종 평가 완료: 점수 {final_score}")
+            logger.info(f"피드백: {final_feedback.strip()}")
+            logger.info("========================================")
+
+        except Exception as e:
+            logger.error(f"\n[❌ LangGraph 실행 중 심각한 에러 발생]: {e}")
+            logger.error("이 에러는 보통 LLM의 출력 문제나 그래프 구성 오류로 발생합니다.")
+            if result:
+                # 에러 발생 직전의 상태를 출력하여 어느 노드에서 멈췄는지 추적
+                logger.error(f"마지막 상태: {result.get('next_worker', 'N/A')}")
+
+        return result
