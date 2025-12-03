@@ -101,7 +101,7 @@ async def add_user_answer(
         ))
 
         ## Writing Stage & Redis 처리
-        # background_task.add_task(gen_write_stage_to_redis,session,_user)
+        background_task.add_task(gen_write_stage_to_redis,session,_user)
         ## Speaking Stage & Redis 처리
         background_task.add_task(gen_speak_stage_to_redis,results, _user)
         
