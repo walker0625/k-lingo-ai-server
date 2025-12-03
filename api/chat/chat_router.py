@@ -1,13 +1,12 @@
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from db.session import  SessionDep
 
 from api.chat.chat_service import ChatService
 from api.chat.dto.chat_dto import ChatRequest, ChatResponse
+## logger
+from loguru import logger
 
-logger = logging.getLogger("__name__")
 router = APIRouter()
 
 @router.post('/questions', response_model=ChatResponse, status_code=status.HTTP_200_OK)

@@ -1,10 +1,9 @@
-import logging
 import io
 import os
 import uuid
 import shutil
 import json 
-from typing import List, Dict, Any
+from typing import List
 import soundfile as sf
 
 from common.path import INPUT_DIR
@@ -24,8 +23,8 @@ from db.model.interview import (
 from api.chat.chat_service import ChatService
 from api.listening.listening_service import ListeningService
 from api.speaking.dto.speaking_dto import SpeakingResponse
-
-logger = logging.getLogger(__name__)
+## logger
+from loguru import logger
 
 DATABASE_URL="postgresql://klingo:klingo@100.100.53.32:5432/k-lingo"
 engine = create_engine(DATABASE_URL)

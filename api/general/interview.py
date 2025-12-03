@@ -1,19 +1,20 @@
 ## Processing user character and equipment purchases
-import os
-import random
-import json
+import os, random, json
 from langchain_openai import ChatOpenAI
-from common.ko_util import korean_to_english_pronunciation
 from typing import Annotated, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlmodel import Session, select, desc
+from common.ko_util import korean_to_english_pronunciation
 from db.session import  SessionDep, get_current_active_user
+from db.redis import StateStore
 from db.model.user import User
+from db.model.scenario import StageType
 from db.model.interview import (
     Interview, UserInterview, InterviewLevel,
     InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
 )
-
+from api.general.service.scenario_dto import QuestWriteInfo, WriteData, QuestSpeakInfo, SpeakData
+from api.general.scenario import QuestLevel
 from api.speaking.speaking_service import SpeakingService
 
 ## logger
@@ -49,12 +50,13 @@ def get_my_interviews(
 
 @router.post("/answer/post", response_model=list[UserInterviewResponse],
             status_code=status.HTTP_201_CREATED)
-def add_user_answer(
+async def add_user_answer(
     answers: list[UserInterviewCreate], session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)]
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    background_task: BackgroundTasks
 ):
     """
-        사용자 인터뷰 답변 입력 처리
+        사용자 인터뷰 답변 입력 처리(user는 현재 로그인한 유저로 처리)
     """
     ## user checker
     logger.info(current_user)
@@ -97,18 +99,57 @@ def add_user_answer(
             answer = _new_answer.answer,
             created_at = _new_answer.created_at
         ))
-        
-        # 쓰기 / 말하기 문제 생성
-        # user_id = answers[0].user_id
-        # interview_ids = [answer.interview_id for answer in answers]
-        
-        # write_problem_json = get_writing_questions(session, user_id)
-        # speaking_problem_json = SpeakingService().generate_speaking_problem(user_id, interview_ids)
-        
-        # print(write_problem_json)
-        # print(speaking_problem_json)
+
+        ## Writing Stage & Redis 처리
+        # background_task.add_task(gen_write_stage_to_redis,session,_user)
+        ## Speaking Stage & Redis 처리
+        background_task.add_task(gen_speak_stage_to_redis,results, _user)
         
     return results
+## generate writing stage & save redis
+async def gen_write_stage_to_redis(session: Session, current_user: User):
+    try:
+        write_problem_json = get_writing_questions(session, current_user.id)
+        store = StateStore()
+        
+        ## write info redis 저장
+        questWriteInfo = QuestWriteInfo(
+            index=1, dificulity=QuestLevel.EASY,
+            question=[]
+        )
+        for info in write_problem_json['question']:
+            questWriteInfo.question.append(
+                WriteData.model_validate(info, from_attributes=True)
+            )
+        logger.info(questWriteInfo)
+        await store.save_ready_stage(StageType.WRITING, current_user.username, questWriteInfo.model_dump_json())
+    except Exception as e:
+        logger.warning(e)
+## generate speaking stage & save redis
+async def gen_speak_stage_to_redis(user_interview:list[UserInterviewResponse], current_user: User):
+    try:
+        logger.info("****** generate speak stage")
+        user_id = current_user.id
+        interview_ids = [interview.interview_id for interview in user_interview]
+        speaking_problem_json = SpeakingService().generate_speaking_problem(user_id, interview_ids)
+        store = StateStore()
+
+        logger.info(speaking_problem_json)
+        ## speak info redis 저장
+        questSpeakInfo = QuestSpeakInfo(
+            index=1, dificulity=QuestLevel.EASY,
+            audio=[]
+        )
+        for info in json.loads(speaking_problem_json)['audio']:
+            speak_data = SpeakData.model_validate(info, from_attributes=True)
+            speak_data.voice_data = info['base64']
+            questSpeakInfo.audio.append(speak_data)
+        logger.info(questSpeakInfo)
+        await store.save_ready_stage(StageType.SPEAKING, current_user.username, questSpeakInfo.model_dump_json())
+        
+        logger.info("****** generate speak stage")
+    except Exception as e:
+        logger.warning(e)
 
 @router.get("/get/{level}", response_model=list[InterviewResponse])
 def get_interview(level:int, session : SessionDep):

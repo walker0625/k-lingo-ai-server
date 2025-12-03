@@ -1,13 +1,9 @@
-import logging
 from datetime import datetime
 from typing import Optional
 from enum import Enum
 from pydantic import BaseModel
-from sqlmodel import Field, SQLModel, UniqueConstraint, Session, select, Relationship
+from sqlmodel import Field, SQLModel, UniqueConstraint, Relationship
 from db.model.user_store import UserCharacter
-
-## logger
-logger = logging.getLogger("app")
 
 class CharacterType(Enum):
     AVATAR = 1

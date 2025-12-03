@@ -8,7 +8,7 @@ from db.model.scenario import (
     Scenario,ScenarioResponse, Stage, StageType, QuestLevel, ReadingQuest, ListeningQuest
 )
 from api.general.service.scenario_service_RL import gen_read_or_listen_quest
-from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo
+from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo, QuestWriteInfo, QuestSpeakInfo
 from db.redis import StateStore
 from db.model.progress import ProgressResponse, ProgressState, Progress #, ProgressCreate
 from .service.progress_service import ProgressRLInfo, ProgressResult
@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/", response_model=list[ScenarioResponse])
 def get_scenarios(session : SessionDep):
     """
-        시나리오 리스트
+        (scenario view 용)시나리오 리스트
     """
     statement = select(Scenario)
     _scenarios = session.exec(statement).all()
@@ -42,7 +42,7 @@ def get_scenarios(session : SessionDep):
 @router.get("/stages", response_model=list[Stage])
 def get_stages(session : SessionDep):
     """
-        시나리오 리스트
+        (scenario view 용)시나리오 리스트
     """
     statement = select(Stage)
     results = session.exec(statement).all()
@@ -51,7 +51,7 @@ def get_stages(session : SessionDep):
 @router.get("/{scenario_id}/{stage_id}/{level}", response_model=QuestBase)
 def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     """
-        시나리오 ID, 스테이지 ID, 레벨로 스테이지 퀘스트 정보 가져오기
+        (정보 확인용)시나리오 ID, 스테이지 ID, 레벨로 스테이지 퀘스트 정보 가져오기
     """
     # scenario = session.get(Scenario, scenario_id)
     # if not scenario:
@@ -83,7 +83,7 @@ def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
 @router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestBase)
 def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : SessionDep):
     """
-        시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
+        (Depricate)시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
     """
     _stage_type = StageType(stage_type)
     statement = select(Stage).where(
@@ -106,7 +106,8 @@ def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : Sess
     quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
     return quest_info
 
-@router.get("/stages/redis/{scenario_id}/{stage_type}/{level}", response_model=QuestReadInfo | QuestListenInfo)
+@router.get("/stages/redis/{scenario_id}/{stage_type}/{level}", 
+            response_model=QuestReadInfo | QuestListenInfo | QuestWriteInfo | QuestSpeakInfo)
 async def get_stage_by_type_with_redis(
     scenario_id:int, stage_type:int, level:int,
     session : SessionDep,
@@ -130,41 +131,51 @@ async def get_stage_by_type_with_redis(
     saved_progress = await store.load_progress_state(current_user.username)
     if saved_progress and saved_progress:
         user_progress = ProgressResponse(**saved_progress)
-        ## 다른 스테이지의 진행 중인 시나리오가 있는 경우 해당 시나리오 전송
-        ## 스테이지가 진행 중인 상태인 경우
+        ## 스테이지가 진행 상태인 다른 스테이지의 진행 중인 시나리오가 있는 경우 해당 시나리오 전송
         if user_progress.state_type != ProgressState.DONE and user_progress.state_type != ProgressState.REPORT:
             # user_progress.scenario_id == scenario_id and user_progress.stage_type == StageType(stage_type) and \
-            ## 타입 체크, READING/LISTENING 인 경우(기존의 진행중인 것이 있으면 진행중에 정보 그대로 리턴)
+            ## 타입 체크(기존의 진행중인 것이 있으면 진행중에 정보 그대로 리턴)
             if user_progress.stage_type == StageType.READING:
                 return QuestReadInfo.model_validate(user_progress.scenario, from_attributes=True)
             elif user_progress.stage_type == StageType.LISTENING:
                 return QuestListenInfo.model_validate(user_progress.scenario, from_attributes=True)
-        ## WRITING, SPEAKING 인경우 추가 처리 필요
-
-    statement = select(Stage).where(
-        Stage.scenario_id == scenario_id,
-        Stage.type_code == _stage_type
-    )
-    stages =  session.exec(statement).all()
-    if not stages and len(stages) <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stage not found"
+            elif user_progress.stage_type == StageType.WRITING:
+                return QuestWriteInfo.model_validate(user_progress.scenario, from_attributes=True)
+            elif user_progress.stage_type == StageType.SPEAKING:
+                return QuestSpeakInfo.model_validate(user_progress.scenario, from_attributes=True)
+    logger.info(f"****** stage type : {_stage_type}")
+    quest_info = None
+    if _stage_type == StageType.READING or _stage_type == StageType.LISTENING:
+        ## 저장된 것이 없는 경우 Reading, Listening => 생성 후 리턴
+        statement = select(Stage).where(
+            Stage.scenario_id == scenario_id,
+            Stage.type_code == _stage_type
         )
-    quest = stages[0].quest
-    quest_info = gen_read_or_listen_quest(
-        _stage_type,
-        [ReadingQuest(**q) for q in quest] ## 타입에 따른 바인딩
-            if _stage_type == StageType.READING
-            else [ListeningQuest(**q) for q in quest],
-        QuestLevel(level))
-    quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
-    
+        stages =  session.exec(statement).all()
+        if not stages and len(stages) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stage not found"
+            )
+        quest = stages[0].quest
+        quest_info = gen_read_or_listen_quest(
+            _stage_type,
+            [ReadingQuest(**q) for q in quest] ## 타입에 따른 바인딩
+                if _stage_type == StageType.READING
+                else [ListeningQuest(**q) for q in quest],
+            QuestLevel(level))
+        quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
+    else:
+        ## 저장된 것이 없는 경우 Writing, Speaking => Redis 사전 생성 정보 조회 후 리턴
+        quest_info = await store.load_ready_stage(_stage_type,current_user.username)
+        logger.info(quest_info)
+            
     progress = Progress(
         user_id=current_user.id,
         scenario_id=scenario_id,
         stage_type=StageType(stage_type),
-        scenario=quest_info.model_dump(mode='json')
+        scenario=quest_info.model_dump(mode='json') \
+            if _stage_type == StageType.READING or _stage_type == StageType.LISTENING else quest_info
     )
     logger.info("****** new progress")
     logger.info(progress)
@@ -179,7 +190,7 @@ async def get_stage_by_type_with_redis(
         current_user.username,
         ProgressResponse.model_validate(progress, from_attributes=True)
     )
-    return quest_info
+    return quest_info   
 
 @router.post("/stage/result/post", response_model=ProgressResult, status_code=status.HTTP_201_CREATED)
 async def stage_result(result: ProgressRLInfo, session: SessionDep):
@@ -210,6 +221,14 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     ## scenario id, stage type 체크
     user_progress = ProgressResponse(**saved_progress)
     logger.info(user_progress)
+    ## stage type Reading, Listening 아니면 잘못된 타입 에러
+    if user_progress.stage_type != StageType.READING and user_progress.stage_type != StageType.LISTENING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{StageType.READING} or {StageType.LISTENING} is only available"
+        )    
+    
+    ## 잘못된 scenario, type이 다르면 오류 발생    
     if user_progress.scenario_id != result.scenario_id or user_progress.stage_type != result.stage_type:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
