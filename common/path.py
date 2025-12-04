@@ -13,3 +13,5 @@ AUDIOS_DIR = STATIC_DIR / "audios"
 IMAGES_DIR = STATIC_DIR / "images" 
 INPUT_DIR = STATIC_DIR / "input"
 OUTPUT_DIR = STATIC_DIR / "output"
+
+PROMPT_DIR = PROJECT_ROOT / "prompt"
