@@ -6,7 +6,6 @@ from db.model.progress import ProgressState
 from common.evaluation import GradeType
 from common.evaluation import EvalutionType, evaluate, grade
 
-
 class ProgressInfo(BaseModel):
     user_id: int
     scenario_id: int
@@ -22,11 +21,17 @@ class ProgressRLInfo(ProgressInfo):
     
 class ProgressResult(BaseModel):
     grade: GradeType     # Grade for points
-    point: float        # point ( 0 ~ 100)
+    average_score: float        # point ( 0 ~ 100)
     top_percent: float  # Grades are in the top few percen
     
+class WriteProgressResult(ProgressResult):
+    pass
+
+class SpeakProgressResult(ProgressResult):
+    pass
+
 def evaluate_reading_grade(stage_progress:ProgressRLInfo):
-    _clear_point = evaluate(EvalutionType.CLEAR_TIME, stage_progress.result_time)
-    _correct_point = evaluate(EvalutionType.WRONG_INDEX, len(stage_progress.wrong_idx))
-    total_point = _clear_point + _correct_point
+    _clear_score = evaluate(EvalutionType.CLEAR_TIME, stage_progress.result_time)
+    _correct_score = evaluate(EvalutionType.WRONG_INDEX, len(stage_progress.wrong_idx))
+    total_point = _clear_score + _correct_score
     return grade(total_point)

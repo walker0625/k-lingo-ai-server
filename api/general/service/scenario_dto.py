@@ -13,7 +13,8 @@ class TargetData(BaseModel):
     word2:TargetItem
 class QuestBase(BaseModel):
     index:int
-    dificulity:QuestLevel
+    difficulty:QuestLevel
+    room_id:int
     
 ## Reading, Listening Scenario Quest Info    
 class QuestReadInfo(QuestBase):

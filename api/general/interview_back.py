@@ -23,24 +23,6 @@ from loguru import logger
 router = APIRouter()
 
 # Routes
-@router.post("/post", response_model=InterviewResponse, status_code=status.HTTP_201_CREATED)
-def add_interview(answer: InterviewCreate, session: SessionDep):
-    """
-        사용자 인터뷰 기초 데이터 입력 처리
-    """
-    ## Create new item
-    new_answer = Interview(
-        type_code = answer.type_code,
-        eng = answer.eng,
-        kor = answer.kor,
-        eng_key = answer.eng_key,
-        kor_key = answer.kor_key
-    )
-    session.add(new_answer)
-    session.commit()
-    session.refresh(new_answer)
-    return new_answer
-
 @router.get("/hello", response_model=list[InterviewResponse])
 def get_my_interviews(
     session : SessionDep, 
@@ -65,39 +47,6 @@ def get_my_interviews(
     ## 2. exclude previous interview list
     sample_list = sampling_interview_list(all_interview_list, user_interview_list)
     return sample_list
-
-## 인터뷰 샘플링
-def sampling_interview_list(
-    all_interview_list:list[InterviewResponse], 
-    user_interview_list:list[InterviewResponse],
-    max_number = 5
-):
-    ### 전체 인터뷰 리스트에서 최대 5개가져오기
-    ### 유저의 인터뷰 히스토리 제외하고 레벨 1번부터 시작해서 순서대로 최대 5개까지 가져오기
-    ## exclude user interview list from all interview list
-    # target_number = 5
-    all_sample_list = [item for item in all_interview_list if item not in user_interview_list]
-    target_list = []
-    ## level 1 list
-    sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.EASY]
-    ## pick 5 items in level 1 list
-    sample_number = max_number if len(sample_list) >= max_number else len(sample_list)
-    target_list = random.sample(sample_list,sample_number)
-    ## if < 5, pick remaining list
-    if len(target_list) < max_number:
-        sample_number = max_number - len(target_list)
-        print(sample_number, max_number, len(target_list))
-        sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.NORMAL]
-        sample_number = sample_number if len(sample_list) >= sample_number else len(sample_list)
-        target_list.extend(random.sample(sample_list,sample_number))
-    ## if < 5, pick remaining list
-    if len(target_list) < max_number:
-        sample_number = max_number - len(target_list)
-        print(sample_number, max_number, len(target_list))
-        sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.HARD]
-        sample_number = sample_number if len(sample_list) >= sample_number else len(sample_list)
-        target_list.extend(random.sample(sample_list,sample_number))
-    return target_list
 
 @router.post("/answer/post/{rooom_id}", response_model=list[UserInterviewResponse],
             status_code=status.HTTP_201_CREATED)
@@ -206,6 +155,87 @@ async def gen_speak_stage_to_redis(user_interview:list[UserInterviewResponse],
         logger.info("****** generate speak stage")
     except Exception as e:
         logger.warning(e)
+
+# @router.get("/get/{level}", response_model=list[InterviewResponse])
+# def get_interview(level:int, session : SessionDep):
+#     """레벨에 해당하는 인터뷰 리스트 (상:3, 중:2, 하:1)"""
+#     statement = select(Interview).where(Interview.type_code == InterviewLevel(level))
+#     result = session.exec(statement).all()
+#     return result
+
+# @router.get("/answer/get/{user_id}", response_model=list[UserInterviewResponse])
+# def get_user_answer(user_id:int, session : SessionDep, level:int = 0):
+#     """레벨에 해당하는 인터뷰 리스트 (상:3, 중:2, 하:1, 전체 : 0)"""
+#     _user: User | None = session.get(User, user_id)
+#     if not _user:
+#         raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"User not found"
+#             )
+#     _answeres = _user.user_interview
+#     result = []
+#     for _answer in _answeres:
+#         _interview = _answer.interview
+#         if level != 0 and level != _interview.type_code != InterviewLevel(level):
+#             continue
+#         result.append(UserInterviewResponse(
+#             id = _answer.id, user_id=_user.id, interview_id=_answer.interview_id,
+#             username=_user.username, interview_kor=_interview.kor, interview_eng=_interview.eng,
+#             interview_kor_key=_interview.kor_key, interview_eng_key=_interview.eng_key,
+#             answer=_answer.answer, created_at=_answer.created_at
+#         ))
+#     return result
+
+# @router.post("/post", response_model=InterviewResponse, status_code=status.HTTP_201_CREATED)
+# def add_interview(answer: InterviewCreate, session: SessionDep):
+#     """
+#         사용자 인터뷰 기초 데이터 입력 처리
+#     """
+#     ## Create new item
+#     new_answer = Interview(
+#         type_code = answer.type_code,
+#         eng = answer.eng,
+#         kor = answer.kor,
+#         eng_key = answer.eng_key,
+#         kor_key = answer.kor_key
+#     )
+#     session.add(new_answer)
+#     session.commit()
+#     session.refresh(new_answer)
+#     return new_answer
+
+# def sampling_interview_list(
+#     all_interview_list:list[InterviewResponse], 
+#     user_interview_list:list[InterviewResponse],
+#     max_number = 5
+# ):
+#     ### 전체 인터뷰 리스트에서 최대 5개가져오기
+#     ### 유저의 인터뷰 히스토리 제외하고 레벨 1번부터 시작해서 순서대로 최대 5개까지 가져오기
+#     ## exclude user interview list from all interview list
+#     # target_number = 5
+#     all_sample_list = [item for item in all_interview_list if item not in user_interview_list]
+#     target_list = []
+#     ## level 1 list
+#     sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.EASY]
+#     ## pick 5 items in level 1 list
+#     sample_number = max_number if len(sample_list) >= max_number else len(sample_list)
+#     target_list = random.sample(sample_list,sample_number)
+#     ## if < 5, pick remaining list
+#     if len(target_list) < max_number:
+#         sample_number = max_number - len(target_list)
+#         print(sample_number, max_number, len(target_list))
+#         sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.NORMAL]
+#         sample_number = sample_number if len(sample_list) >= sample_number else len(sample_list)
+#         target_list.extend(random.sample(sample_list,sample_number))
+#     ## if < 5, pick remaining list
+#     if len(target_list) < max_number:
+#         sample_number = max_number - len(target_list)
+#         print(sample_number, max_number, len(target_list))
+#         sample_list = [item for item in all_sample_list if item.type_code == InterviewLevel.HARD]
+#         sample_number = sample_number if len(sample_list) >= sample_number else len(sample_list)
+#         target_list.extend(random.sample(sample_list,sample_number))
+#     return target_list
+
 
 # =========================================================
 # 쓰기 문제 생성 메서드 (유지)

@@ -66,10 +66,10 @@ async def log_requests(request: Request, call_next):
 
 ### general_router
 app.include_router(user_router, prefix="/users", tags=["user"])
+app.include_router(interview_router, prefix="/interview", tags=["interview"])
+app.include_router(scenario_router, prefix="/scenario", tags=["scenario"])
 app.include_router(character_router, prefix="/character", tags=["character"])
 app.include_router(user_store_router, prefix="/store", tags=["store"])
-app.include_router(scenario_router, prefix="/scenario", tags=["scenario"])
-app.include_router(interview_router, prefix="/interview", tags=["interview"])
 app.include_router(log_router, prefix="/logs", tags=["logs"])
 app.include_router(upload_router, prefix="/upload", tags=["upload"])
 

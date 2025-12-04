@@ -80,36 +80,36 @@ def get_stage(scenario_id:int, stage_id:int, level:int, session : SessionDep):
     quest_info.index = scenario_id
     return quest_info
 
-@router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestBase)
-def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : SessionDep):
-    """
-        (Depricate)시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
-    """
-    _stage_type = StageType(stage_type)
-    statement = select(Stage).where(
-        Stage.scenario_id == scenario_id,
-        Stage.type_code == _stage_type
-    )
-    stages =  session.exec(statement).all()
-    if not stages and len(stages) <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stage not found"
-        )
-    quest = stages[0].quest
-    quest_info = gen_read_or_listen_quest(
-        _stage_type,
-        [ReadingQuest(**q) for q in quest] ## 타입에 따른 바인딩
-            if _stage_type == StageType.READING
-            else [ListeningQuest(**q) for q in quest],
-        QuestLevel(level))
-    quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
-    return quest_info
+# @router.get("/stages/{scenario_id}/{stage_type}/{level}", response_model=QuestBase)
+# def get_stage_by_type(scenario_id:int, stage_type:int, level:int, session : SessionDep):
+#     """
+#         (Depricate)시나리오 ID, 스테이지 유형(읽기:1, 듣기:2, 쓰기:3, 말하기:4), 레벨로 스테이지 퀘스트 정보 가져오기
+#     """
+#     _stage_type = StageType(stage_type)
+#     statement = select(Stage).where(
+#         Stage.scenario_id == scenario_id,
+#         Stage.type_code == _stage_type
+#     )
+#     stages =  session.exec(statement).all()
+#     if not stages and len(stages) <= 0:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Stage not found"
+#         )
+#     quest = stages[0].quest
+#     quest_info = gen_read_or_listen_quest(
+#         _stage_type,
+#         [ReadingQuest(**q) for q in quest] ## 타입에 따른 바인딩
+#             if _stage_type == StageType.READING
+#             else [ListeningQuest(**q) for q in quest],
+#         QuestLevel(level))
+#     quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
+#     return quest_info
 
-@router.get("/stages/redis/{scenario_id}/{stage_type}/{level}", 
+@router.get("/stages/redis/{room_id}/{scenario_id}/{stage_type}/{level}", 
             response_model=QuestReadInfo | QuestListenInfo | QuestWriteInfo | QuestSpeakInfo)
 async def get_stage_by_type_with_redis(
-    scenario_id:int, stage_type:int, level:int,
+    room_id:int, scenario_id:int, stage_type:int, level:int,
     session : SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
@@ -129,7 +129,7 @@ async def get_stage_by_type_with_redis(
             detail="Need to set up redis"
         )
     saved_progress = await store.load_progress_state(current_user.username)
-    if saved_progress and saved_progress:
+    if saved_progress:
         user_progress = ProgressResponse(**saved_progress)
         ## 스테이지가 진행 상태인 다른 스테이지의 진행 중인 시나리오가 있는 경우 해당 시나리오 전송
         if user_progress.state_type != ProgressState.DONE and user_progress.state_type != ProgressState.REPORT:
@@ -165,6 +165,7 @@ async def get_stage_by_type_with_redis(
                 else [ListeningQuest(**q) for q in quest],
             QuestLevel(level))
         quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
+        quest_info.room_id = room_id   ## 해당 게임룸 번호로 변경
     else:
         ## 저장된 것이 없는 경우 Writing, Speaking => Redis 사전 생성 정보 조회 후 리턴
         quest_info = await store.load_ready_stage(_stage_type,current_user.username)
@@ -173,6 +174,7 @@ async def get_stage_by_type_with_redis(
     progress = Progress(
         user_id=current_user.id,
         scenario_id=scenario_id,
+        room_id=room_id,
         stage_type=StageType(stage_type),
         scenario=quest_info.model_dump(mode='json') \
             if _stage_type == StageType.READING or _stage_type == StageType.LISTENING else quest_info
@@ -235,13 +237,13 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
             detail=f"Your Scenario({result.scenario_id}) Stage({result.stage_type}) not found"
         )    
     ## 평가 result
-    _clear_point = evaluate(EvalutionType.CLEAR_TIME,result.result_time)
-    _wrong_point = evaluate(EvalutionType.WRONG_INDEX,len(result.wrong_idx))
-    _total_point = _clear_point+_wrong_point
+    _clear_score = evaluate(EvalutionType.CLEAR_TIME,result.result_time)
+    _wrong_score = evaluate(EvalutionType.WRONG_INDEX,len(result.wrong_idx))
+    _total_score = _clear_score+_wrong_score
     # update progress result
     _result = ProgressResult(
-        grade=grade(_total_point),
-        point=_total_point,
+        grade=grade(_total_score),
+        average_score=_total_score,
         top_percent=0.23 ## 구현 필요 => 해당 시나리오, 스테이지에 대한 완료 결과만 읽어 (소팅인덱스+1)/갯수로 결과 생성
     )
     ## 결과 및 완료 처리
@@ -253,7 +255,10 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     db_progress = session.exec(statement).first()
     db_progress.state_type = ProgressState.DONE
     db_progress.result = _result.model_dump(mode='json')
+    db_progress.average_score = _result.average_score  ## 스테이지 점수 저장, top percent 계산시 사용
     session.add(db_progress)
     session.commit()
     session.refresh(db_progress)
+    ## Top 계산
+    
     return _result

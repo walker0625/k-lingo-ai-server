@@ -91,7 +91,8 @@ def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LI
     if stage_type == StageType.READING:
         return QuestReadInfo(
             index=1,
-            dificulity=level,
+            difficulty=level,
+            room_id=0,
             target_data=target_data,
             correct_answer_index=correct_index,
             word_data1=WordData(
@@ -113,7 +114,8 @@ def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LI
     else: #if stage_type == StageType.LISTENING:
         return QuestListenInfo(
             index=1,
-            dificulity=level,
+            difficulty=level,
+            room_id=0,
             target_data=target_data,
             correct_answer_index=correct_index,
             word_data1=WordData(
