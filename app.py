@@ -35,6 +35,7 @@ from api.chat.chat_router import router as chat_router
 from api.listening.listening_router import router as listening_router
 from api.write.write_routers import router as write_router
 from api.speaking.speaking_router import router as speaking_router
+from api.evaluation.evaluation_router import router as evaluation_router
 
 set_logger()
 
@@ -78,6 +79,7 @@ app.include_router(chat_router, prefix="/chats", tags=["chat"])
 app.include_router(listening_router, prefix="/listenings", tags=["listening"])
 app.include_router(write_router, prefix="/writes", tags=["write"])
 app.include_router(speaking_router, prefix="/speakings", tags=["speaking"])
+app.include_router(evaluation_router, prefix="/evaluations", tags=["evaluation"])
 
 ## index page
 @app.get("/")
