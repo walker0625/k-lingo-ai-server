@@ -96,7 +96,7 @@ class ScenarioResponse(BaseModel):
 #     full_data = quest_template['full_data'].format(*quest_data[correct_index])
 #     return QuestReadInfo(
 #         index=1,
-#         dificulity=QuestLevel.EASY,
+#         difficulty=QuestLevel.EASY,
 #         target_data=target_data,
 #         correct_answer_index=correct_index,
 #         word_data1=WordData(

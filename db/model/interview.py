@@ -47,7 +47,6 @@ class InterviewResponse(BaseModel):
     kor_key: str
     pronunciation: str | None = None
     created_at: datetime
-    
 
 class UserInterviewCreate(BaseModel):
     interview_id: int
