@@ -6,7 +6,7 @@ from loguru import logger
 
 router = APIRouter()
 
-@router.post('/rooms/{room_id}', response_model=EvaluationResponse, status_code=status.HTTP_200_OK)
+@router.get('/rooms/{room_id}', response_model=EvaluationResponse, status_code=status.HTTP_200_OK)
 def evaluate_learning_result(
     session: SessionDep,
     room_id: int = Path(..., title="방 번호", description="평가를 수행할 방의 고유 ID")
