@@ -9,7 +9,10 @@ from api.evaluation.dto.evaluation_dto import EvaluationResponse
 from openai import OpenAI
 
 from langchain_core.prompts import load_prompt
+from sqlmodel import select
 
+
+from db.model.progress import Progress
 from common.path import PROMPT_DIR
 
 class EvaluationService:
@@ -18,14 +21,13 @@ class EvaluationService:
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     
     def _fetch_room_data(self, room_id: int, session: any) -> dict:
-        """
-        [DB 연동 부분]
-        room_id를 사용하여 DB에서 학습 데이터를 조회합니다.
-        현재는 테스트를 위해 더미 데이터를 반환합니다.
-        """
+        
         logger.info(f"DB Fetching data for room_id: {room_id}")
         
-        # TODO: 실제로는 session.query(...) 등을 사용하여 DB에서 데이터를 가져와야 합니다.
+        statement = select(Progress.result).where(Progress.room_id == room_id)
+        results = session.exec(statement).all() 
+        
+        print(results)
         
         return {
             "reading": { "grade": "D", "score": 49.0, "top_percent": 0.23 },
@@ -86,6 +88,7 @@ class EvaluationService:
         # 3. 데이터 주입 ({INPUT_JSON_DATA} 치환)
         final_prompt = template.format(INPUT_JSON_DATA = user_data_json_str)
         
+        # 4. llm으로 결과 생성
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o",  
@@ -100,12 +103,9 @@ class EvaluationService:
             
             content = response.choices[0].message.content
             
-            print('start')
-            print(content)
-            print('end')
-            
             # 5. 결과 파싱 및 반환
             result_dict = self._parse_llm_json(content)
+            
             return EvaluationResponse(**result_dict)
 
         except Exception as e:
