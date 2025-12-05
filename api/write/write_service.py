@@ -1,311 +1,206 @@
 import os
 import json
+import base64
 import asyncio
-import requests
-import time
-import io
+import difflib
+import cv2
 import numpy as np
-from datetime import datetime
-from typing import Dict, Any, List
-from PIL import Image
+from typing import List, Dict, Any, Tuple
+from fastapi import UploadFile, HTTPException
+from openai import AsyncOpenAI
+from sqlalchemy.orm import Session
 from paddleocr import PaddleOCR
-from dotenv import load_dotenv
-from difflib import SequenceMatcher
-
-# 쓰기 문제 생성용
-from langchain_openai import ChatOpenAI
-from sqlmodel import Session, select, desc
-
-# DB 모델
-from db.model.interview import Interview, UserInterview
-
-# ✅ 유틸 함수 (발음 변환용)
-from common.ko_util import korean_to_english_pronunciation
-
-load_dotenv()
 
 
 class WriteService:
     def __init__(self):
-        print("🔧 WriteService 초기화 시작...")
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            print("⚠️ 경고: OPENAI_API_KEY가 설정되지 않았습니다.")
 
-        # 1. PaddleOCR 초기화
-        try:
-            self.paddle = PaddleOCR(
-                lang="korean",
-                show_log=False,
-                enable_mkldnn=False,
-                use_gpu=False,
-                use_angle_cls=True,
-                ocr_version="PP-OCRv4",
-            )
-            print("✅ PaddleOCR 초기화 성공")
-        except Exception as e:
-            print(f"⚠️ PaddleOCR 초기화 실패: {e}")
-            self.paddle = None
+        self.client = AsyncOpenAI(api_key=self.api_key)
 
-        self.naver_url = os.getenv("NAVER_OCR_URL")
-        self.naver_key = os.getenv("NAVER_SECRET_KEY")
-
-        # 2. LLM 초기화 (JSON 모드)
-        try:
-            openai_key = os.getenv("OPENAI_API_KEY")
-            if not openai_key:
-                print("⚠️ OPENAI_API_KEY가 없습니다.")
-                self.llm = None
-            else:
-                self.llm = ChatOpenAI(
-                    model="gpt-4o",
-                    temperature=0,
-                    api_key=openai_key,
-                    model_kwargs={"response_format": {"type": "json_object"}},
-                )
-                print("✅ ChatOpenAI 초기화 성공")
-        except Exception as e:
-            print(f"❌ ChatOpenAI 초기화 실패: {e}")
-            self.llm = None
-
-        print("✅ WriteService 초기화 완료")
-
-    # =========================================================
-    # 1. OCR 및 파일 처리 (내부 헬퍼)
-    # =========================================================
-    def run_naver(self, file_bytes, filename):
-        """네이버 OCR 호출"""
-        try:
-            data = {
-                "images": [{"format": "jpg", "name": "demo"}],
-                "requestId": datetime.now().strftime("%Y%m%d_%H%M%S"),
-                "version": "V2",
-                "timestamp": int(time.time() * 1000),
-            }
-            headers = {"X-OCR-SECRET": self.naver_key}
-            resp = requests.post(
-                self.naver_url,
-                headers=headers,
-                data={"message": json.dumps(data)},
-                files=[("file", (filename, file_bytes))],
-            )
-            texts = [
-                f["inferText"]
-                for img in resp.json().get("images", [])
-                for f in img.get("fields", [])
-            ]
-            return " ".join(texts)
-        except Exception as e:
-            print(f"❌ Naver OCR 실패: {e}")
-            return "Naver OCR 실패"
-
-    def run_paddle(self, file_bytes):
-        """PaddleOCR 호출"""
-        if not self.paddle:
-            return "Paddle 모델 없음"
-        try:
-            img = np.array(Image.open(io.BytesIO(file_bytes)).convert("RGB"))
-            result = self.paddle.ocr(img, cls=False)
-            if not result or not result[0]:
-                return ""
-            return " ".join([line[1][0] for line in result[0]])
-        except Exception as e:
-            print(f"❌ Paddle OCR 실패: {e}")
-            return ""
-
-    async def _perform_ocr(self, file, mode="paddle"):
-        """(내부용) 이미지에서 텍스트 추출"""
-        content = await file.read()
-        if mode == "paddle":
-            text = self.run_paddle(content)
-        else:
-            text = self.run_naver(content, file.filename)
-        return text
-
-    # =========================================================
-    # 2. 쓰기 문제 생성 (DB 조회 O, 비동기 병렬 처리)
-    # =========================================================
-    async def _process_single_question(
-        self, user_int: UserInterview, interview: Interview
-    ) -> Dict[str, Any]:
-        """개별 질문 처리: 유틸 함수로 발음 생성, LLM으로 번역 생성"""
-        kor_q = interview.kor if interview.kor else ""
-        eng_q = interview.eng if interview.eng else ""
-        eng_ans = user_int.answer if user_int.answer else ""
-
-        # 1. 발음 생성 (ko_util 함수 사용)
-        try:
-            pronunciation = korean_to_english_pronunciation(kor_q)
-        except Exception as e:
-            print(f"⚠️ 발음 변환 실패: {e}")
-            pronunciation = ""
-
-        result_data = {
-            "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": pronunciation},
-            "answer": eng_ans,
-            "answer_kor": "",
-        }
-
-        if not self.llm or not eng_ans:
-            return result_data
-
-        # 2. 번역 생성 (LLM 비동기 호출)
-        try:
-            prompt = f"""
-            You are a Korean language tutor.
-            Translate "User's Answer" into natural, polite Korean (Honorifics).
-            
-            Context: 
-            - Question: "{kor_q}"
-            - User's Answer (English): "{eng_ans}"
-            
-            Output JSON only: {{ "answer_kor": "..." }}
-            """
-
-            response = await self.llm.ainvoke(prompt)
-            content = response.content.strip()
-
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-
-            llm_result = json.loads(content)
-            result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
-
-        except Exception as e:
-            print(f"⚠️ LLM 번역 실패 (ID: {user_int.id}): {e}")
-            result_data["answer_kor"] = eng_ans
-
-        return result_data
+        print("Loading PaddleOCR Model (CPU Mode)...")
+        # [수정] use_gpu=False 추가하여 CPU 모드 강제
+        self.ocr = PaddleOCR(
+            use_angle_cls=True, lang="korean", use_gpu=False, show_log=False
+        )
 
     async def get_writing_questions(
         self, session: Session, user_id: int
-    ) -> Dict[str, Any]:
-        """쓰기 문제 5개 생성 (병렬 처리)"""
-        print(f"\n{'='*60}")
-        print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
-
-        try:
-            # DB 쿼리
-            statement = (
-                select(UserInterview, Interview)
-                .join(Interview, UserInterview.interview_id == Interview.id)
-                .where(UserInterview.user_id == user_id)
-                .order_by(desc(UserInterview.created_at))
-                .limit(5)
-            )
-            results = session.exec(statement).all()
-
-            if not results:
-                return {"user_id": user_id, "question": []}
-
-            # 병렬 처리 (asyncio.gather)
-            tasks = [
-                self._process_single_question(user_int, interview)
-                for user_int, interview in results
-            ]
-            processed_questions = await asyncio.gather(*tasks)
-
-            print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
-            return {"user_id": user_id, "question": processed_questions}
-
-        except Exception as e:
-            print(f"❌ 문제 생성 에러: {e}")
-            return {"user_id": user_id, "question": []}
-
-    # =========================================================
-    # 3. 쓰기 평가 및 채점 (다중 파일 지원, 하이브리드 평가)
-    # =========================================================
-    async def _get_correction_feedback(self, target: str, wrong_input: str) -> str:
-        """LLM 피드백 생성 (비동기)"""
-        if not self.llm:
-            return "오타가 있습니다."
-
-        prompt = f"""
-        You are a Korean handwriting teacher.
-        Target: "{target}"
-        Student wrote (OCR): "{wrong_input}"
-        Briefly explain the mistake in Korean. Example: "'녕'을 '넝'으로 쓰셨네요."
-        Output only the Korean feedback string.
-        """
-        try:
-            res = await self.llm.ainvoke(prompt)
-            return res.content.strip().replace('"', "")
-        except:
-            return "글자가 조금 틀렸습니다."
-
-    async def _evaluate_single_image(self, target_text: str, file) -> Dict[str, Any]:
-        """단일 이미지 평가 로직 (OCR -> 채점 -> 피드백)"""
-        # 1. OCR
-        user_input = await self._perform_ocr(file, mode="paddle")
-        user_input = user_input.strip()
-
-        # 방어 로직
-        if not user_input:
-            return {
-                "display": {
-                    "is_pass": False,
-                    "message": "글자가 안 보여요. 다시 써주세요!",
-                    "correction": "",
-                },
-                "record": {"score": 0, "target": target_text, "input": ""},
-            }
-
-        # 2. 점수 계산 (Python difflib)
-        clean_target = (
-            target_text.replace(" ", "").replace(".", "").replace("?", "").strip()
-        )
-        clean_user = (
-            user_input.replace(" ", "").replace(".", "").replace("?", "").strip()
-        )
-
-        matcher = SequenceMatcher(None, clean_target, clean_user)
-        score = int(matcher.ratio() * 100)
-
-        # 3. 결과 분기 (Hybrid Strategy)
-        display_message = ""
-        is_pass = False
-        correction_text = ""
-
-        # 평가 기준: 90점(완벽), 60점(통과)
-        if score >= 90:
-            is_pass = True
-            display_message = "완벽해요! 글씨가 정말 예쁘시네요. 🎉"
-        elif score >= 60:
-            is_pass = True
-            display_message = "통과! (조금 더 또박또박 써볼까요?)"
-            # LLM 호출 (비동기)
-            correction_text = await self._get_correction_feedback(
-                target_text, user_input
-            )
-        else:
-            is_pass = False
-            display_message = "글자가 많이 달라요. 다시 한번 써보세요."
-            correction_text = f"인식된 글자: {user_input}"
-
-        return {
-            "display": {
-                "is_pass": is_pass,  # [UI용] 성공/실패 효과음 트리거
-                "message": display_message,  # [UI용] 말풍선 텍스트
-                "correction": correction_text,  # [UI용] 틀린 부분 힌트
-            },
-            "record": {
-                "score": score,  # [기록용] 최종 에이전트에게 전달될 점수
-                "target": target_text,  # [기록용] 정답
-                "input": user_input,  # [기록용] 사용자가 쓴 것
-                "stage": "writing",
-            },
-        }
+    ) -> List[Dict[str, Any]]:
+        return []
 
     async def evaluate_tracing(
-        self, target_text: str, files: List
+        self, target_texts: List[str], files: List[UploadFile]
     ) -> List[Dict[str, Any]]:
-        """
-        [대량 채점] 여러 장의 이미지를 받아서 각각 채점 후 리스트로 반환
-        """
+        # [입력 데이터 전처리] Swagger/List 입력 오류 방지용 분리 로직
+        if len(target_texts) == 1 and len(files) > 1 and "," in target_texts[0]:
+            print(f"DEBUG: 감지됨 - 합쳐진 텍스트를 분리합니다: {target_texts[0]}")
+            target_texts = [t.strip() for t in target_texts[0].split(",")]
+
         results = []
-        for file in files:
-            # 파일 포인터 초기화 (안전장치)
-            await file.seek(0)
-            result = await self._evaluate_single_image(target_text, file)
-            results.append(result)
+
+        for target_text, file in zip(target_texts, files):
+            try:
+                content = await file.read()
+                nparr = np.frombuffer(content, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                if img is None:
+                    raise ValueError("이미지 파일을 읽을 수 없습니다.")
+
+                # [수정] 인식률 향상을 위해 BGR -> RGB 변환
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+                # 1. Local 점수 계산 (RGB 이미지 사용)
+                ocr_text, score = self._calculate_score_local(img_rgb, target_text)
+
+                # 2. AI 피드백 생성
+                base64_image = base64.b64encode(content).decode("utf-8")
+                ai_feedback = await self._generate_feedback_with_gpt(
+                    base64_image, target_text, ocr_text, score
+                )
+
+                # 3. 반환값 구성을 위한 변수 분리
+                is_pass = score >= 70
+                display_message = ai_feedback.get("message", "참 잘했어요!")
+                correction_text = ai_feedback.get(
+                    "correction", "조금 더 정확하게 써보세요."
+                )
+                user_input = ocr_text
+
+                # 4. 결과 구성
+                result = {
+                    "display": {
+                        "is_pass": is_pass,
+                        "message": display_message,
+                        "correction": correction_text,
+                    },
+                    "record": {
+                        "score": score,
+                        "target": target_text,
+                        "input": user_input,
+                        "stage": "writing",
+                    },
+                }
+                results.append(result)
+
+            except Exception as e:
+                print(f"❌ 평가 중 에러: {e}")
+                results.append(
+                    {
+                        "display": {
+                            "is_pass": False,
+                            "message": "평가 중 오류가 발생했습니다.",
+                            "correction": "다시 시도해 주세요.",
+                        },
+                        "record": {
+                            "score": 0,
+                            "target": target_text,
+                            "input": "",
+                            "stage": "writing",
+                        },
+                    }
+                )
+            finally:
+                await file.seek(0)
 
         return results
+
+    def _calculate_score_local(
+        self, img_array: np.ndarray, target_text: str
+    ) -> Tuple[str, int]:
+        """
+        [Local Logic] PaddleOCR + difflib.SequenceMatcher
+        """
+        try:
+            # PaddleOCR 수행
+            result = self.ocr.ocr(img_array, cls=True)
+
+            ocr_text = ""
+            # result 구조 안전하게 파싱
+            if result and result[0]:
+                for line in result[0]:
+                    # line 구조: [[x,y], [text, confidence]]
+                    if line and len(line) > 1 and line[1]:
+                        text_part = line[1][0]
+                        ocr_text += text_part
+
+            # 공백 제거
+            ocr_text = ocr_text.replace(" ", "")
+            target_clean = target_text.replace(" ", "")
+
+            # 인식된 텍스트가 없으면 0점
+            if not ocr_text:
+                print(f"DEBUG: OCR 인식 실패 (Empty Result) for Target: {target_clean}")
+                return "", 0
+
+            # 유사도 계산
+            matcher = difflib.SequenceMatcher(None, target_clean, ocr_text)
+            accuracy = matcher.ratio() * 100
+            score = int(accuracy)
+
+            print(f"DEBUG: Target={target_clean}, OCR={ocr_text}, Score={score}")
+            return ocr_text, score
+
+        except Exception as e:
+            print(f"PaddleOCR Error: {e}")
+            return "", 0
+
+    async def _generate_feedback_with_gpt(
+        self, base64_image: str, target: str, ocr_input: str, score: int
+    ) -> Dict[str, str]:
+        system_prompt = """
+        당신은 한국어 글쓰기 선생님입니다.
+        제공된 이미지와 계산된 점수를 바탕으로, 학생에게 줄 격려 메시지와 교정 내용을 JSON으로 작성하세요.
+
+        [규칙]
+        1. 점수({score}점)는 절대 변경하지 마세요.
+        2. 점수가 70점 미만이면 구체적인 교정 사항(모양, 획순 등)을, 70점 이상이면 칭찬을 위주로 작성하세요.
+        3. OCR이 읽은 글자({ocr_input})가 목표 글자({target})와 다르다면 그 부분을 짚어주세요.
+        
+        응답 포맷:
+        {
+            "message": "학생에게 건네는 부드러운 말투의 피드백",
+            "correction": "글씨 모양, 크기, 획 등에 대한 구체적인 조언"
+        }
+        """
+
+        user_content = f"""
+        - 목표 단어: {target}
+        - OCR 인식 결과: {ocr_input}
+        - 계산된 점수: {score}점
+        
+        이 데이터를 바탕으로 피드백을 주세요.
+        """
+
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_content},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                },
+                            },
+                        ],
+                    },
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.7,
+            )
+
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            print(f"GPT Error: {e}")
+            return {
+                "message": "잘 썼어요!" if score > 70 else "조금 더 연습해 볼까요?",
+                "correction": "글자 모양을 목표 단어와 똑같이 써보세요.",
+            }
