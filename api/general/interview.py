@@ -99,7 +99,7 @@ def sampling_interview_list(
         target_list.extend(random.sample(sample_list,sample_number))
     return target_list
 
-@router.post("/answer/post/{rooom_id}", response_model=list[UserInterviewResponse],
+@router.post("/answer/post/{room_id}", response_model=list[UserInterviewResponse],
             status_code=status.HTTP_201_CREATED)
 async def add_user_answer(
     answers: list[UserInterviewCreate],
