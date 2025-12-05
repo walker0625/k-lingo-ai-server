@@ -28,6 +28,7 @@ class EvaluationService:
         results = session.exec(statement).all() 
         
         return results
+        
     def _parse_llm_json(self, content: str) -> dict:
         """LLM의 응답(문자열)에서 JSON 부분만 추출하여 파싱합니다."""
         try:
