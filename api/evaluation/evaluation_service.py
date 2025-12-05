@@ -27,45 +27,7 @@ class EvaluationService:
         statement = select(Progress.result).where(Progress.room_id == room_id)
         results = session.exec(statement).all() 
         
-        print(results)
-        
-        return {
-            "reading": { "grade": "D", "score": 49.0, "top_percent": 0.23 },
-            "listening": { "grade": "C", "score": 63.0, "top_percent": 0.23 },
-            "write": [
-                {
-                    "write_results": [
-                        { "display": { "is_pass": True, "message": "통과!...", "correction": "..." }, "record": { "score": 60, "target": "케이링고", "input": "케/이 리고 <", "stage": "writing" } },
-                        { "display": { "is_pass": False, "message": "글자가 많이 달라요...", "correction": "인식된 글자: 부엌이" }, "record": { "score": 28, "target": "케이링고", "input": "부엌이", "stage": "writing" } }
-                    ],
-                    "average_score": 44, "top_percent": 0.5
-                },
-                {
-                    "write_results": [
-                        { "display": { "is_pass": True, "message": "통과!...", "correction": "..." }, "record": { "score": 60, "target": "케이링고", "input": "케/이 리고 <", "stage": "writing" } },
-                        { "display": { "is_pass": False, "message": "글자가 많이 달라요...", "correction": "인식된 글자: 부엌이" }, "record": { "score": 28, "target": "케이링고", "input": "부엌이", "stage": "writing" } }
-                    ],
-                    "average_score": 44, "top_percent": 0.5
-                }
-            ],
-            "speaking": [
-                {
-                    "speaking_results": [
-                        { "grammar_score": 20, "context_score": 20, "speaking_total_score": 30, "feedback": "안녕하세요, 질문 '안녕' (Hello)에 대한 답변이므로 123456와 같은 숫자는 적절하지 않습니다..." },
-                        { "grammar_score": 20, "context_score": 20, "final_overall_score": 30, "final_feedback": "안녕하세요, 질문 '안녕' (Hello)에 대한 답변이므로 123456와 같은 숫자는 적절하지 않습니다..." }
-                    ],
-                    "average_score": 30, "top_percent": 0.5
-                },
-                    {
-                        "speaking_results": [
-                            { "grammar_score": 20, "context_score": 20, "speaking_total_score": 30, "feedback": "안녕하세요, 질문 '안녕' (Hello)에 대한 답변이므로 123456와 같은 숫자는 적절하지 않습니다..." },
-                            { "grammar_score": 20, "context_score": 20, "final_overall_score": 30, "final_feedback": "안녕하세요, 질문 '안녕' (Hello)에 대한 답변이므로 123456와 같은 숫자는 적절하지 않습니다..." }
-                        ],
-                    "average_score": 30, "top_percent": 0.5
-                }
-            ]
-        }
-
+        return results
     def _parse_llm_json(self, content: str) -> dict:
         """LLM의 응답(문자열)에서 JSON 부분만 추출하여 파싱합니다."""
         try:
