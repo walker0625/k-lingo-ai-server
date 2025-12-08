@@ -37,7 +37,7 @@ def feedback_tutor(state: AssessmentState, llm) -> dict:
     input_msg = (
         f"학습자 발화: {state['user_text']}\n"
         f"평가 내용: {score_data}\n\n"
-        "[출력 지침] 위에 제공된 평가 내용을 바탕으로 **반드시 한국어로** 교육적 피드백을 작성하세요. "
+        "[출력 지침] 위에 제공된 평가 내용을 바탕으로 **반드시 영어로** 교육적 피드백을 작성하세요. "
         "결과는 JSON: {\"message\": \"...\"} 형식으로 출력해야 합니다."
     )
     
