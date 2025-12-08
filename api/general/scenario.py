@@ -1,6 +1,6 @@
 import json
 from fastapi import APIRouter, HTTPException, status, Depends
-from sqlmodel import select
+from sqlmodel import select, Session, text
 from db.session import  SessionDep, get_current_active_user
 from typing import Annotated
 from db.model.user import User
@@ -244,7 +244,7 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     _result = ProgressResult(
         grade=grade(_total_score),
         average_score=_total_score,
-        top_percent=0.23 ## 구현 필요 => 해당 시나리오, 스테이지에 대한 완료 결과만 읽어 (소팅인덱스+1)/갯수로 결과 생성
+        top_percent=None ## 구현 필요 => 해당 시나리오, 스테이지에 대한 완료 결과만 읽어 (소팅인덱스+1)/갯수로 결과 생성
     )
     ## 결과 및 완료 처리
     user_progress.result = _result.model_dump(mode='json')
@@ -260,5 +260,41 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     session.commit()
     session.refresh(db_progress)
     ## Top 계산
-    
+    _result.top_percent = cal_stage_top_percent(session, db_progress.id, 
+            db_progress.scenario_id, db_progress.stage_type, db_progress.average_score);
     return _result
+
+def cal_stage_top_percent(session:Session, progress_id:int, 
+        scenario_id:int, stage_type:StageType, average_score:float=0.0) -> float:
+    ## Progress 처리 결과에 대한 Top 퍼센트 계산 count / total count
+    total_count_sql = f"""
+        SELECT COUNT(*) cnt FROM progress
+        WHERE  scenario_id = {scenario_id} and stage_type = '{stage_type.name}'
+	    and (state_type = 'DONE' or state_type = 'REPORT');"""
+    count_sql = f"""
+        SELECT COUNT(*) cnt FROM progress
+        WHERE  scenario_id = {scenario_id} and stage_type = '{stage_type.name}' and average_score < {average_score}
+	    and (state_type = 'DONE' or state_type = 'REPORT');"""
+    # order_sql = f"""SELECT r FROM (
+    #     SELECT id, RANK() OVER (PARTITION BY scenario_id, stage_type
+    #                ORDER BY average_score DESC) AS r
+    #     FROM progress
+    #     WHERE scenario_id = {scenario_id} and stage_type = '{stage_type.name}'
+    #         and (state_type = 'DONE' or state_type = 'REPORT')
+    # ) AS ranked_scores
+    # WHERE id = {progress_id};"""
+    total_count_result = session.exec(text(total_count_sql)).first()
+    count_result = session.exec(text(count_sql)).first()
+    if not total_count_result or len(total_count_result) <= 0:
+        _total_count = 0
+    else:
+        _total_count = total_count_result[0]
+    if not count_result or len(count_result) <= 0:
+        _count = 0.0
+    else:
+        _count = count_result[0]
+    if _count <= 0.0 or _total_count <= 0.0:
+        result = 100.0
+    else:
+        result = round((_total_count - _count -1) / _total_count, 3)
+    return result
