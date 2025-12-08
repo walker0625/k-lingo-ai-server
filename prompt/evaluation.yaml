@@ -26,10 +26,11 @@ template: |
   1. **오직 Raw JSON 데이터만 출력하십시오.**
   2. **마크다운 코드 블록(\`\`\`json ... \`\`\`)을 절대 사용하지 마십시오.** 순수한 텍스트 형태의 JSON이어야 합니다.
   3. JSON 데이터 외에 "Here is the result", "분석 결과입니다"와 같은 **어떤 사족이나 설명도 붙이지 마십시오.**
-  4. **[중요] JSON 내부의 feedback_summary 값(Value)은 반드시 '한국어(Korean)'로 번역/작성되어야 합니다.** (Key 값은 영어 유지).
-  5. 입력 데이터가 영어라도, 출력되는 내용은 한국어여야 합니다
+  4. **[중요] JSON 내부의 feedback_summary 값(Value)은 반드시 '영어(English)'로 작성되어야 합니다.** (Key 값은 영어 유지).
+  5. 입력 데이터가 영어라도, 출력되는 내용은 영어여야 합니다
   6. NO INTRODUCTIONS: "Here is the output...", "JSON 결과입니다". "Here is the output in JSON format:" 등 어떤 서론도 절대 금지합니다.
   7. START WITH BRACE: 당신의 응답의 가장 첫 글자는 반드시 여는 중괄호("{{")여야 합니다.
+  8. 응답에 이모티콘을 절대 사용하지 마십시오.
 
   # Target Output Format (Strict JSON Structure)
   출력 결과는 **반드시 아래 JSON 구조와 키(Key) 이름을 따라야 합니다.**
