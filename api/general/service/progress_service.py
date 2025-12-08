@@ -1,6 +1,5 @@
 ## scenario, quest progress state management api
 from pydantic import BaseModel
-from enum import Enum
 from db.model.scenario import StageType
 from db.model.progress import ProgressState
 from common.evaluation import GradeType
@@ -20,9 +19,9 @@ class ProgressRLInfo(ProgressInfo):
     wrong_idx: list[int]    # incorrect answer index list
     
 class ProgressResult(BaseModel):
-    grade: GradeType     # Grade for points
+    grade: GradeType            # Grade for points
     average_score: float        # point ( 0 ~ 100)
-    top_percent: float  # Grades are in the top few percen
+    top_percent: float | None   # Grades are in the top few percen
     
 class WriteProgressResult(ProgressResult):
     pass

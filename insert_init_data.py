@@ -4,6 +4,7 @@ import pandas as pd
 from db.model.interview import InterviewCreate
 # from pydantic import BaseModel
 BASE_URL = "http://localhost:8104/"
+# BASE_URL = "http://100.100.53.32:8104/"
 
 ## user 데이터 생성
 def user_data():
@@ -48,14 +49,15 @@ print("********** start **********")
 ## User
 user_data()
 ## Interview Data
-df = pd.read_csv("./masterdata/InterviewQuestion01.csv")
-df.columns = ["type_code","id","eng","kor","eng_key","kor_key"]
-## interview list
-interview_list = []
-for i in range(len(df)):
-    interview_list.append(InterviewCreate(**df.iloc[i].to_dict()))
-interview_list[:3]
-## 데이터 입력 처리
-for i,item in enumerate(interview_list):
-    insert_interview(df.loc[i,'id'],item)
+for interview_file in ["./masterdata/InterviewQuestion01.csv","./masterdata/InterviewQuestion02.csv"]:
+    df = pd.read_csv(interview_file)
+    df.columns = ["type_code","id","eng","kor","eng_key","kor_key"]
+    ## interview list
+    interview_list = []
+    for i in range(len(df)):
+        interview_list.append(InterviewCreate(**df.iloc[i].to_dict()))
+    interview_list[:3]
+    ## 데이터 입력 처리
+    for i,item in enumerate(interview_list):
+        insert_interview(df.loc[i,'id'],item)
 print("********** end **********")
