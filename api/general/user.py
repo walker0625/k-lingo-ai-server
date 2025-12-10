@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import Annotated
 from db.model.user import User, UserCreate, UserResponse, Token
+from db.model.character import CharacterType
 from db.session import  SessionDep, get_user_by_username, get_password_hash
 from db.session import authenticate_user, create_access_token, get_current_active_user
 ## logger
@@ -58,7 +59,23 @@ def login(
 def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
-    return current_user
+    _user = UserResponse(
+        id = current_user.id,
+        username = current_user.username,
+        fullname = current_user.fullname,
+        is_active = current_user.is_active,
+        my_avatar = None,
+        my_color = None
+    )
+    user_characters = current_user.user_character
+    for _char in user_characters:
+        if _char.is_used:
+            if _char.character.type_code == CharacterType.AVATAR:
+                _user.my_avatar = _char.character.name
+            elif _char.character.type_code == CharacterType.COLOR:
+                _user.my_color = _char.character.name
+    
+    return _user
 
 # @router.get("/host")
 # def protected_route(

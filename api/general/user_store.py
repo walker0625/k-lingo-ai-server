@@ -1,6 +1,6 @@
 ## Processing user character and equipment purchases
 from fastapi import APIRouter, HTTPException, status
-from sqlmodel import select
+from sqlmodel import select, update
 from db.session import  SessionDep, get_user_by_username
 from db.model.user_store import UserCharacter, UserCharacterCreate, UserCharacterResponse
 from db.model.user import User
@@ -40,21 +40,22 @@ def add_item(item: UserCharacterCreate, session: SessionDep):
     _user = session.get(User,item.user_id)
     if not _user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
     statement = select(UserCharacter).\
-                where(UserCharacter.user_id == item.user_id and UserCharacter.character_id == item.character_id)
+                where(UserCharacter.user_id == item.user_id,
+                      UserCharacter.character_id == item.character_id)
     _item = session.exec(statement).first()
     if _item:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You already buyed that Character"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have that character equipped"
         )
-    # Create new item
+    ## 아이템 장착 처리
     new_item = UserCharacter(
         user_id = item.user_id,
-        username = _user.username,
+        # username = _user.username,
         character_id = item.character_id,
         is_used = True, ## 구매시 기본 장착 처리
         desc = item.desc
@@ -62,6 +63,17 @@ def add_item(item: UserCharacterCreate, session: SessionDep):
     session.add(new_item)
     session.commit()
     session.refresh(new_item)
+    ## 동일 타입 장착 해제 처리
+     ## user의 user_character에서 동일 타입이 장착되어 있으면 해제 처리    
+    user_characters = _user.user_character
+    for uc in user_characters:
+        if uc.id == new_item.id:
+            continue
+        if uc.is_used and uc.character.type_code == new_item.character.type_code:
+            uc.is_used = False
+            session.add(uc)
+    session.commit()
+    
     return UserCharacterResponse(
         id = new_item.id,
         user_id = new_item.user_id,
