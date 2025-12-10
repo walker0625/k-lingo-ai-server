@@ -1,25 +1,33 @@
 # api/speaking/speaking_router.py
-from fastapi import APIRouter, HTTPException, status, File, UploadFile
+from fastapi import APIRouter, HTTPException, status, File, UploadFile, Depends
+from typing import Annotated
 
+from db.session import get_current_active_user
+from db.model.user import User
 from api.speaking.dto.speaking_dto import SpeakingResponse
-from api.speaking.speaking_service import SpeakingService # 💡 import는 유지
-## logger
+from api.speaking.speaking_service import SpeakingService
+
 from loguru import logger
+
 router = APIRouter()
 
 @router.post('/judges', response_model=SpeakingResponse, status_code=status.HTTP_200_OK)
-def listen_speaking_and_judge(question: str, audio: UploadFile = File(...)) -> SpeakingResponse:
+async def listen_speaking_and_judge(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    question: str, 
+    audio: UploadFile = File(...)
+    ) -> SpeakingResponse:
     
     try:
         #💡 요청이 들어올 때마다 SpeakingService 인스턴스 생성
         #   (내부적으로 모델 로딩은 __init__에서 한 번만 발생)
         service = SpeakingService() 
-        response = service.listen_speaking_and_judge(question, audio)
+        response = await service.listen_speaking_and_judge(current_user.username, question, audio)
         
         return response
     
     except HTTPException as http_e:
-        # 💡 HTTP 예외는 그대로 다시 발생 (e.g. 400, 503)
+
         raise http_e
         
     except Exception as e:
