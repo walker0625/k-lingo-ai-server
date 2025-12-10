@@ -24,9 +24,11 @@ from db.model.interview import (
     InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
 )
 
+from db.redis import StateStore
+
 from api.listening.listening_service import ListeningService
 from api.speaking.dto.speaking_dto import SpeakingResponse
-## logger
+
 from loguru import logger
 
 DATABASE_URL="postgresql://klingo:klingo@100.100.53.32:5432/k-lingo"
@@ -72,8 +74,8 @@ class SpeakingService:
                 raise HTTPException(status_code=503, detail="AI 서비스 초기화 실패")
 
         return cls._asr_pipeline
-
-    def listen_speaking_and_judge(self, question, audio_file: UploadFile) -> SpeakingResponse:
+    
+    async def listen_speaking_and_judge(self, username, question, audio_file: UploadFile) -> SpeakingResponse:
         
         file_name = 'speaking_' + str(uuid.uuid4()) + '.wav'
         file_path = os.path.join(INPUT_DIR, file_name)
@@ -107,6 +109,25 @@ class SpeakingService:
                 final_overall_score=final_overall_score,
                 final_feedback=final_feedback
             )
+            
+            # redis에 result값 업데이트(저장값이 문자열이라 조회 -> 수정 -> 재저장으로 진행)
+            redis = StateStore()
+            
+            ## 1. 조회
+            stored_str = await redis.load_user_state("KLINGO-CURRENT", username)
+            current_data = json.loads(stored_str)
+
+            ## 2. 수정
+            ### result가 딕셔너리({})라면 -> 리스트([])로 변환 후 추가
+            if isinstance(current_data.get("result"), dict):
+                current_data["result"] = [final_overall_score]
+            ### result가 이미 리스트([])라면 -> append
+            elif isinstance(current_data.get("result"), list):
+                current_data["result"].append(final_overall_score)
+                
+            state_data_json = json.dumps(current_data, ensure_ascii=False)
+
+            await redis.save_user_state("KLINGO-CURRENT", username, state_data_json)
             
             return response_object
             
