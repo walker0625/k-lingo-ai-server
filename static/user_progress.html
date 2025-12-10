@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학습 진행 현황</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        .user-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .user-search {
+            margin-bottom: 15px;
+        }
+
+        .user-search input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .user-search input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .user-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .user-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .user-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+
+        .user-info {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .progress-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .progress-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .progress-table th,
+        .progress-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .progress-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .progress-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-reading {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .badge-listening {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .badge-writing {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .badge-speaking {
+            background: #e1f5fe;
+            color: #0277bd;
+        }
+
+        .grade-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .grade-A { background: #4caf50; color: white; }
+        .grade-B { background: #8bc34a; color: white; }
+        .grade-C { background: #ffc107; color: white; }
+        .grade-D { background: #ff9800; color: white; }
+        .grade-F { background: #f44336; color: white; }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .result-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .result-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .stage-results {
+            display: grid;
+            gap: 15px;
+        }
+
+        .stage-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stage-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .stage-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .stage-stat {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .stage-stat .label {
+            font-size: 11px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .stage-stat .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .percentile {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .date-info {
+            font-size: 12px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 학습 진행 현황</h1>
+            <p>사용자별 학습 진행 상태 및 결과를 확인하세요</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 사용자 목록 패널 -->
+            <div class="user-panel">
+                <h3 class="panel-title">👥 사용자 목록</h3>
+                
+                <div class="user-search">
+                    <input type="text" id="userSearch" placeholder="🔍 사용자 이름 검색..." onkeyup="filterUsers()">
+                </div>
+
+                <div id="userList" class="user-list">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p style="font-size: 14px;">사용자 목록 로딩 중...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 학습 진행 현황 패널 -->
+            <div class="progress-panel">
+                <div id="emptyState" class="empty-state">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    <h3>사용자를 선택하세요</h3>
+                    <p>왼쪽 목록에서 사용자를 선택하면 학습 진행 현황이 표시됩니다</p>
+                </div>
+
+                <div id="progressContent" style="display: none;">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number" id="totalProgress">0</div>
+                            <div class="label">총 학습 횟수</div>
+                        </div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <div class="number" id="avgScore">0</div>
+                            <div class="label">평균 점수</div>
+                        </div>
+                        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <div class="number" id="avgGrade">-</div>
+                            <div class="label">평균 학점</div>
+                        </div>
+                    </div>
+
+                    <h3 class="panel-title">📚 학습 기록</h3>
+                    
+                    <table class="progress-table">
+                        <thead>
+                            <tr>
+                                <th>날짜</th>
+                                <th>시나리오</th>
+                                <th>타입</th>
+                                <th>점수</th>
+                                <th>학점</th>
+                                <th>상위</th>
+                                <th>상세</th>
+                            </tr>
+                        </thead>
+                        <tbody id="progressTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상세 결과 모달 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">학습 상세 결과</h3>
+                <button class="close-btn" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="result-section">
+                    <h4 class="section-title">📈 종합 결과</h4>
+                    <div class="result-grid">
+                        <div class="result-item">
+                            <div class="result-label">총점</div>
+                            <div class="result-value" id="detailScore">0</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">학점</div>
+                            <div class="result-value" id="detailGrade">-</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">상위 백분율</div>
+                            <div class="result-value" id="detailPercentile">0%</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-label">학습 시간</div>
+                            <div class="result-value" id="detailDuration">0분</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-section">
+                    <h4 class="section-title">🎯 스테이지별 결과</h4>
+                    <div id="stageResults" class="stage-results">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allUsers = [];
+        let currentUserId = null;
+        let userProgressData = [];
+
+        // 초기 데이터 로드
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                allUsers = await response.json();
+                renderUsers();
+            } catch (error) {
+                console.error('사용자 목록 로드 실패:', error);
+                document.getElementById('userList').innerHTML = `
+                    <div class="empty-state">
+                        <p style="color: #dc3545;">사용자 목록을 불러올 수 없습니다</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 사용자 목록 렌더링
+        function renderUsers() {
+            const container = document.getElementById('userList');
+            
+            if (allUsers.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 40px 20px;">
+                        <p>등록된 사용자가 없습니다</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = allUsers.map(user => `
+                <div class="user-item" onclick="selectUser(${user.id}, '${user.name}')">
+                    <div class="user-name">${user.name}</div>
+                    <div class="user-info">ID: ${user.id} | 학습: ${user.progress_count || 0}회</div>
+                </div>
+            `).join('');
+        }
+
+        // 사용자 선택
+        async function selectUser(userId, userName) {
+            currentUserId = userId;
+            
+            // 활성 상태 표시
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // 학습 데이터 로드
+            await loadUserProgress(userId);
+        }
+
+        // 사용자 학습 데이터 로드
+        async function loadUserProgress(userId) {
+            try {
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('progressContent').innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>학습 데이터 로딩 중...</p>
+                    </div>
+                `;
+                document.getElementById('progressContent').style.display = 'block';
+
+                const response = await fetch(`/api/users/${userId}/progress`);
+                userProgressData = await response.json();
+                
+                renderProgress();
+            } catch (error) {
+                console.error('학습 데이터 로드 실패:', error);
+                document.getElementById('progressContent').innerHTML = `
+                    <div class="empty-state">
+                        <p style="color: #dc3545;">학습 데이터를 불러올 수 없습니다</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 학습 진행 현황 렌더링
+        function renderProgress() {
+            const content = document.getElementById('progressContent');
+            
+            if (userProgressData.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 80px; height: 80px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <h3>학습 기록이 없습니다</h3>
+                        <p>아직 진행한 학습이 없습니다</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 통계 계산
+            const totalProgress = userProgressData.length;
+            const avgScore = (userProgressData.reduce((sum, p) => sum + p.score, 0) / totalProgress).toFixed(1);
+            const grades = userProgressData.map(p => p.grade);
+            const avgGrade = calculateAverageGrade(grades);
+
+            // HTML 구성
+            content.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number">${totalProgress}</div>
+                        <div class="label">총 학습 횟수</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="number">${avgScore}</div>
+                        <div class="label">평균 점수</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <div class="number">${avgGrade}</div>
+                        <div class="label">평균 학점</div>
+                    </div>
+                </div>
+
+                <h3 class="panel-title">📚 학습 기록</h3>
+                
+                <table class="progress-table">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>시나리오</th>
+                            <th>타입</th>
+                            <th>점수</th>
+                            <th>학점</th>
+                            <th>상위</th>
+                            <th>상세</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${userProgressData.map((progress, index) => `
+                            <tr>
+                                <td class="date-info">${formatDate(progress.completed_at)}</td>
+                                <td><strong>${progress.scenario_title}</strong></td>
+                                <td>
+                                    ${progress.stage_types.map(type => 
+                                        `<span class="badge badge-${type.toLowerCase()}">${type}</span>`
+                                    ).join(' ')}
+                                </td>
+                                <td><strong style="color: #667eea; font-size: 16px;">${progress.score}</strong></td>
+                                <td>
+                                    <span class="grade-badge grade-${progress.grade}">${progress.grade}</span>
+                                </td>
+                                <td>
+                                    <span class="percentile">🏆 상위 ${progress.percentile}%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary" onclick='showDetailModal(${JSON.stringify(progress).replace(/'/g, "&#39;")})'>
+                                        📊 상세보기
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // 상세 모달 표시
+        function showDetailModal(progress) {
+            document.getElementById('modalTitle').textContent = `${progress.scenario_title} - 학습 상세 결과`;
+            
+            // 종합 결과
+            document.getElementById('detailScore').textContent = progress.score;
+            document.getElementById('detailGrade').textContent = progress.grade;
+            document.getElementById('detailPercentile').textContent = `상위 ${progress.percentile}%`;
+            document.getElementById('detailDuration').textContent = `${progress.duration || 0}분`;
+
+            // 스테이지별 결과
+            const stageResults = document.getElementById('stageResults');
+            stageResults.innerHTML = progress.stage_details.map(stage => `
+                <div class="stage-card">
+                    <div class="stage-header">
+                        <div>
+                            <div class="stage-name">${stage.title}</div>
+                            <span class="badge badge-${stage.type.toLowerCase()}">${stage.type}</span>
+                        </div>
+                        <span class="grade-badge grade-${stage.grade}">${stage.grade}</span>
+                    </div>
+                    <div class="stage-stats">
+                        <div class="stage-stat">
+                            <div class="label">점수</div>
+                            <div class="value">${stage.score}</div>
+                        </div>
+                        <div class="stage-stat">
+                            <div class="label">정답률</div>
+                            <div class="value">${stage.accuracy}%</div>
+                        </div>
+                        <div class="stage-stat">
+                            <div class="label">소요시간</div>
+                            <div class="value">${stage.time}분</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${stage.accuracy}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        // 평균 학점 계산
+        function calculateAverageGrade(grades) {
+            const gradePoints = { 'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0 };
+            const total = grades.reduce((sum, grade) => sum + (gradePoints[grade] || 0), 0);
+            const avg = total / grades.length;
+            
+            if (avg >= 3.5) return 'A';
+            if (avg >= 2.5) return 'B';
+            if (avg >= 1.5) return 'C';
+            if (avg >= 0.5) return 'D';
+            return 'F';
+        }
+
+        // 날짜 포맷
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 사용자 검색 필터
+        function filterUsers() {
+            const searchTerm = document.getElementById('userSearch').value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-item');
+            
+            userItems.forEach(item => {
+                const userName = item.querySelector('.user-name').textContent.toLowerCase();
+                if (userName.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // 모달 외부 클릭 시 닫기
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target === modal) {
+                closeDetailModal();
+            }
+        }
+
+        // 초기 로드
+        loadUsers();
+    </script>
+</body>
+</html>

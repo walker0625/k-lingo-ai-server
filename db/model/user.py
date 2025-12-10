@@ -28,6 +28,8 @@ class UserResponse(BaseModel):
     username: str
     fullname: str
     is_active: bool
+    my_avatar: Optional[str]
+    my_color: Optional[str]
 
 # JWT Token
 class Token(BaseModel):
