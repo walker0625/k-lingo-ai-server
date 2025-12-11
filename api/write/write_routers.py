@@ -6,8 +6,7 @@ from .write_service import WriteService
 from db.session import SessionDep, get_current_active_user
 from db.model.user import User
 
-# ✅ [수정] prefix 제거! (app.py에서 이미 "/writes"로 연결함)
-# 이렇게 해야 최종 URL이 "/writes/submit"이 됩니다.
+# [수정] prefix 제거! (app.py에서 이미 "/writes"로 연결함)
 router = APIRouter()
 
 
@@ -45,12 +44,14 @@ async def get_writing_questions(
 
 
 # ============================================
-# 2. 쓰기 제출 및 평가 API
+# 2. 쓰기 제출 및 평가 API (수정된 부분)
 # ============================================
 @router.post("/submit")
 async def submit_writing_answer(
+    current_user: Annotated[User, Depends(get_current_active_user)],
     files: List[UploadFile] = File(...),
     target_texts: List[str] = Form(...),
+    # [추가] 로그인한 유저 정보를 가져옵니다. (Redis Key 생성용)
     service: WriteService = Depends(get_write_service),
 ):
     """
@@ -66,18 +67,22 @@ async def submit_writing_answer(
         )
 
     try:
-        # 2. 서비스 호출
-        results = await service.evaluate_tracing(target_texts, valid_files)
+        # 2. 서비스 호출 [수정]
+        # service.evaluate_tracing 함수의 첫 번째 인자로 user_id를 넘겨줍니다.
+        results = await service.evaluate_tracing(
+            username=current_user.username, target_texts=target_texts, files=valid_files
+        )
+
         return JSONResponse(
             content=results, media_type="application/json; charset=utf-8"
         )
 
     except ValueError as ve:
-        print(f"⚠️ 요청 데이터 오류: {ve}")
+        print(f"요청 데이터 오류: {ve}")
         return JSONResponse(status_code=400, content={"message": str(ve)})
 
     except Exception as e:
-        print(f"❌ 채점 에러: {e}")
+        print(f"채점 에러: {e}")
         return JSONResponse(
             status_code=500, content={"message": f"서버 에러: {str(e)}"}
         )

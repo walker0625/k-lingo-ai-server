@@ -5,6 +5,8 @@ import asyncio
 import difflib
 import cv2
 import numpy as np
+import redis.asyncio as redis
+from datetime import datetime
 from typing import List, Dict, Any, Tuple
 from fastapi import UploadFile, HTTPException
 from openai import AsyncOpenAI
@@ -14,14 +16,28 @@ from paddleocr import PaddleOCR
 
 class WriteService:
     def __init__(self):
+        # 1. OpenAI 클라이언트 설정
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             print("⚠️ 경고: OPENAI_API_KEY가 설정되지 않았습니다.")
 
         self.client = AsyncOpenAI(api_key=self.api_key)
 
+        # 2. Redis 설정 (.env 파일 내용 반영)
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = os.getenv("REDIS_PORT", "6379")
+
+        # Redis 연결
+        self.redis_url = f"redis://{redis_host}:{redis_port}"
+
+        try:
+            self.redis = redis.from_url(self.redis_url, decode_responses=True)
+            print(f"✅ Redis Connected: {self.redis_url}")
+        except Exception as e:
+            print(f"❌ Redis Connection Failed: {e}")
+
+        # 3. PaddleOCR 모델 로드
         print("Loading PaddleOCR Model (CPU Mode)...")
-        # [수정] use_gpu=False 추가하여 CPU 모드 강제
         self.ocr = PaddleOCR(
             use_angle_cls=True, lang="korean", use_gpu=False, show_log=False
         )
@@ -32,9 +48,14 @@ class WriteService:
         return []
 
     async def evaluate_tracing(
-        self, target_texts: List[str], files: List[UploadFile]
+        self, username: str, target_texts: List[str], files: List[UploadFile]
     ) -> List[Dict[str, Any]]:
-        # [입력 데이터 전처리] Swagger/List 입력 오류 방지용 분리 로직
+        """
+        사용자가 쓴 글씨 이미지를 평가하고,
+        Redis의 result에 '점수(int)' 배열로 저장합니다.
+        """
+
+        # [입력 데이터 전처리] - 콤마로 구분된 텍스트 처리
         if len(target_texts) == 1 and len(files) > 1 and "," in target_texts[0]:
             print(f"DEBUG: 감지됨 - 합쳐진 텍스트를 분리합니다: {target_texts[0]}")
             target_texts = [t.strip() for t in target_texts[0].split(",")]
@@ -50,10 +71,9 @@ class WriteService:
                 if img is None:
                     raise ValueError("이미지 파일을 읽을 수 없습니다.")
 
-                # [수정] 인식률 향상을 위해 BGR -> RGB 변환
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                # 1. Local 점수 계산 (RGB 이미지 사용)
+                # 1. 점수 계산
                 ocr_text, score = self._calculate_score_local(img_rgb, target_text)
 
                 # 2. AI 피드백 생성
@@ -62,25 +82,73 @@ class WriteService:
                     base64_image, target_text, ocr_text, score
                 )
 
-                # 3. 반환값 구성을 위한 변수 분리
-                is_pass = score >= 70
-                display_message = ai_feedback.get("message", "참 잘했어요!")
-                correction_text = ai_feedback.get(
-                    "correction", "조금 더 정확하게 써보세요."
-                )
-                user_input = ocr_text
+                # =========================================================
+                # ✅ 3. Redis 데이터 업데이트 (수정됨 - CURRENT 중첩 구조 제거)
+                # 구조: { "result": [80, 50, 90], ... }
+                # =========================================================
+                current_history = []
+                try:
+                    # Redis Key를 username 기반으로 생성
+                    redis_key = f"KLINGO-CURRENT:{username}"
 
-                # 4. 결과 구성
+                    # A. 기존 데이터 조회
+                    raw_data = await self.redis.get(redis_key)
+
+                    if raw_data:
+                        try:
+                            data = json.loads(raw_data)
+                        except json.JSONDecodeError:
+                            data = {}
+                    else:
+                        data = {}
+
+                    # B. result 배열 초기화 (CURRENT 중첩 구조 제거!)
+                    if "result" not in data:
+                        data["result"] = []
+
+                    # result가 딕셔너리인 경우 배열로 변환
+                    if isinstance(data["result"], dict):
+                        data["result"] = []
+
+                    # result가 배열이 아니면 배열로 변환
+                    if not isinstance(data["result"], list):
+                        data["result"] = []
+
+                    # C. 점수(int)만 배열에 직접 추가
+                    score_value = int(score) if isinstance(score, (int, float)) else 0
+                    data["result"].append(score_value)
+
+                    # D. Redis에 저장
+                    await self.redis.set(
+                        redis_key, json.dumps(data, ensure_ascii=False)
+                    )
+
+                    # 히스토리 업데이트
+                    current_history = data["result"]
+
+                    print(
+                        f"💰 [Redis] User '{username}' added score: {score_value}. "
+                        f"Total: {len(current_history)} scores. History: {current_history}"
+                    )
+
+                except Exception as redis_error:
+                    print(f"⚠️ Redis Error: {redis_error}")
+                    pass
+
+                # 4. 결과 반환 구성
+                is_pass = score >= 70
                 result = {
                     "display": {
                         "is_pass": is_pass,
-                        "message": display_message,
-                        "correction": correction_text,
+                        "message": ai_feedback.get("message", "참 잘했어요!"),
+                        "correction": ai_feedback.get(
+                            "correction", "조금 더 정확하게 써보세요."
+                        ),
                     },
                     "record": {
                         "score": score,
                         "target": target_text,
-                        "input": user_input,
+                        "input": ocr_text,
                         "stage": "writing",
                     },
                 }
@@ -112,36 +180,25 @@ class WriteService:
         self, img_array: np.ndarray, target_text: str
     ) -> Tuple[str, int]:
         """
-        [Local Logic] PaddleOCR + difflib.SequenceMatcher
+        PaddleOCR + difflib.SequenceMatcher로 점수 계산
         """
         try:
-            # PaddleOCR 수행
             result = self.ocr.ocr(img_array, cls=True)
-
             ocr_text = ""
-            # result 구조 안전하게 파싱
             if result and result[0]:
                 for line in result[0]:
-                    # line 구조: [[x,y], [text, confidence]]
                     if line and len(line) > 1 and line[1]:
                         text_part = line[1][0]
                         ocr_text += text_part
 
-            # 공백 제거
-            ocr_text = ocr_text.replace(" ", "")
+            ocr_text_clean = ocr_text.replace(" ", "")
             target_clean = target_text.replace(" ", "")
 
-            # 인식된 텍스트가 없으면 0점
-            if not ocr_text:
-                print(f"DEBUG: OCR 인식 실패 (Empty Result) for Target: {target_clean}")
+            if not ocr_text_clean:
                 return "", 0
 
-            # 유사도 계산
-            matcher = difflib.SequenceMatcher(None, target_clean, ocr_text)
-            accuracy = matcher.ratio() * 100
-            score = int(accuracy)
-
-            print(f"DEBUG: Target={target_clean}, OCR={ocr_text}, Score={score}")
+            matcher = difflib.SequenceMatcher(None, target_clean, ocr_text_clean)
+            score = int(matcher.ratio() * 100)
             return ocr_text, score
 
         except Exception as e:
@@ -151,6 +208,9 @@ class WriteService:
     async def _generate_feedback_with_gpt(
         self, base64_image: str, target: str, ocr_input: str, score: int
     ) -> Dict[str, str]:
+        """
+        GPT-4o를 사용하여 학습자에게 줄 피드백 생성
+        """
         system_prompt = """
         당신은 한국어 글쓰기 선생님입니다.
         제공된 이미지와 계산된 점수를 바탕으로, 학생에게 줄 격려 메시지와 교정 내용을 JSON으로 작성하세요.
@@ -159,6 +219,8 @@ class WriteService:
         1. 점수({score}점)는 절대 변경하지 마세요.
         2. 점수가 70점 미만이면 구체적인 교정 사항(모양, 획순 등)을, 70점 이상이면 칭찬을 위주로 작성하세요.
         3. OCR이 읽은 글자({ocr_input})가 목표 글자({target})와 다르다면 그 부분을 짚어주세요.
+        4. 모든 격려 메시지와 교정 내용은 반드시 영어(English)로 작성해야 합니다.
+        5. 절대 응답에 이모티콘이 들어가서는 안됩니다.
         
         응답 포맷:
         {
@@ -196,7 +258,6 @@ class WriteService:
                 response_format={"type": "json_object"},
                 temperature=0.7,
             )
-
             return json.loads(response.choices[0].message.content)
         except Exception as e:
             print(f"GPT Error: {e}")
