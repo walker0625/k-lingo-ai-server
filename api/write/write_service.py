@@ -52,7 +52,8 @@ class WriteService:
     ) -> List[Dict[str, Any]]:
         """
         사용자가 쓴 글씨 이미지를 평가하고,
-        Redis의 result에 '점수(int)' 배열로 저장합니다.
+        Redis의 result 내부에 scores 리스트로 저장합니다.
+        구조: { "result": { "scores": [{"score": n, "desc": "..."}] } }
         """
 
         # [입력 데이터 전처리] - 콤마로 구분된 텍스트 처리
@@ -83,15 +84,12 @@ class WriteService:
                 )
 
                 # =========================================================
-                # ✅ 3. Redis 데이터 업데이트 (수정됨 - CURRENT 중첩 구조 제거)
-                # 구조: { "result": [80, 50, 90], ... }
+                # ✅ 3. Redis 데이터 업데이트 (구조 변경 적용)
+                # 목표 구조: { "result": { "scores": [...] }, ... }
                 # =========================================================
                 current_history = []
                 try:
-                    # Redis Key를 username 기반으로 생성
                     redis_key = f"KLINGO-CURRENT:{username}"
-
-                    # A. 기존 데이터 조회
                     raw_data = await self.redis.get(redis_key)
 
                     if raw_data:
@@ -102,33 +100,42 @@ class WriteService:
                     else:
                         data = {}
 
-                    # B. result 배열 초기화 (CURRENT 중첩 구조 제거!)
-                    if "result" not in data:
-                        data["result"] = []
+                    # A. 'result' 키가 없거나 딕셔너리가 아니면 초기화
+                    if "result" not in data or not isinstance(data["result"], dict):
+                        data["result"] = {}
 
-                    # result가 딕셔너리인 경우 배열로 변환
-                    if isinstance(data["result"], dict):
-                        data["result"] = []
+                    # B. 'result' 안에 'scores' 리스트 초기화
+                    if "scores" not in data["result"]:
+                        data["result"]["scores"] = []
 
-                    # result가 배열이 아니면 배열로 변환
-                    if not isinstance(data["result"], list):
-                        data["result"] = []
+                    # 만약 result['scores']가 리스트가 아니면 강제 초기화
+                    if not isinstance(data["result"]["scores"], list):
+                        data["result"]["scores"] = []
 
-                    # C. 점수(int)만 배열에 직접 추가
+                    # C. [마이그레이션] 루트 레벨에 있는 'scores'가 있다면 안으로 이동
+                    if "scores" in data and isinstance(data["scores"], list):
+                        # 기존 루트 scores 데이터를 result/scores로 이동
+                        data["result"]["scores"].extend(data["scores"])
+                        # 이동 후 루트 키 삭제
+                        del data["scores"]
+
+                    # D. 새로운 평가 결과 객체 생성
                     score_value = int(score) if isinstance(score, (int, float)) else 0
-                    data["result"].append(score_value)
+                    correction_text = ai_feedback.get("correction", "")
+                    score_obj = {"score": score_value, "desc": correction_text}
 
-                    # D. Redis에 저장
+                    # E. 데이터 추가
+                    data["result"]["scores"].append(score_obj)
+                    data["updated_at"] = datetime.utcnow().isoformat()
+
+                    # Redis 저장
                     await self.redis.set(
                         redis_key, json.dumps(data, ensure_ascii=False)
                     )
 
-                    # 히스토리 업데이트
-                    current_history = data["result"]
-
+                    current_history = data["result"]["scores"]
                     print(
-                        f"💰 [Redis] User '{username}' added score: {score_value}. "
-                        f"Total: {len(current_history)} scores. History: {current_history}"
+                        f"💰 [Redis] User '{username}' added score: {score_value}. Total: {len(current_history)} records."
                     )
 
                 except Exception as redis_error:
