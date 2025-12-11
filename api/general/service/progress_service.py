@@ -39,3 +39,9 @@ def evaluate_reading_grade(stage_progress:ProgressRLInfo):
     _correct_score = evaluate(EvalutionType.WRONG_INDEX, len(stage_progress.wrong_idx))
     total_point = _clear_score + _correct_score
     return grade(total_point)
+
+def average_score(scores:list[ProgressScore]):
+    if not scores:
+        return 0.0
+    total = sum([score.score for score in scores])
+    return total / len(scores)

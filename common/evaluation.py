@@ -54,4 +54,3 @@ def grade(total_score:float) -> GradeType:
     if total_score >= 40:
         return GradeType.D
     return GradeType.F
-    

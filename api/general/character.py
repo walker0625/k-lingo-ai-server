@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from db.session import  SessionDep, get_session
-from db.model.character import Character
+from db.model.character import Character, CharacterType
 from db.model.character import CharacterResponse
 from db.model.character import CharacterCreate
 ## logger
@@ -10,9 +10,13 @@ from loguru import logger
 ## user router
 router = APIRouter()
 # Routes
-@router.get("/", response_model=list[CharacterResponse])
-def get_items(name: str,session : SessionDep):
-    statement = select(Character).where(Character.name.contains(name))
+@router.get("/list/{character_type}", response_model=list[CharacterResponse])
+def get_items(character_type: int,session : SessionDep):
+    """
+        캐릭터 유형 전체 리스트 조회
+        Character Type : 1 - AVATAR(외형), 2 -COLOR
+    """
+    statement = select(Character).where(Character.type_code == CharacterType(character_type))
     results = session.exec(statement).all()
     return results
 

@@ -11,7 +11,7 @@ from api.general.service.scenario_service_RL import gen_read_or_listen_quest
 from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo, QuestWriteInfo, QuestSpeakInfo
 from db.redis import StateStore
 from db.model.progress import ProgressResponse, ProgressState, Progress #, ProgressCreate
-from .service.progress_service import ProgressRLInfo, ProgressResult, ProgressScore
+from .service.progress_service import ProgressRLInfo, ProgressResult, ProgressScore, average_score
 from common.evaluation import EvalutionType, evaluate, grade
 ## logger
 from loguru import logger
@@ -291,33 +291,35 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     ## scenario id, stage type 체크
     user_progress = ProgressResponse(**saved_progress)
     logger.info(user_progress)
-    ## stage type Reading, Listening 아니면 잘못된 타입 에러
-    if user_progress.stage_type != StageType.READING and user_progress.stage_type != StageType.LISTENING:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{StageType.READING} or {StageType.LISTENING} is only available"
-        )    
-    
     ## 잘못된 scenario, type이 다르면 오류 발생    
     if user_progress.scenario_id != result.scenario_id or user_progress.stage_type != result.stage_type:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Your Scenario({result.scenario_id}) Stage({result.stage_type}) not found"
         )    
-    ## 평가 result
-    _clear_score = evaluate(EvalutionType.CLEAR_TIME,result.result_time)
-    _wrong_score = evaluate(EvalutionType.WRONG_INDEX,len(result.wrong_idx))
-    _total_score = _clear_score+_wrong_score
-    # update progress result
-    _result = ProgressResult(
-        grade=grade(_total_score),
-        average_score=_total_score,
-        scores=[
-            ProgressScore(score=_clear_score, desc=f"Clear time : {result.result_time}, score : {_clear_score} / 30"),
-            ProgressScore(score=_wrong_score, desc=f"Number of failures : {len(result.wrong_idx)}, score : {_wrong_score} / 70"),
-        ],
-        top_percent=0.0
-    )
+    ## stage type Reading, Listening 처리
+    if user_progress.stage_type == StageType.READING or user_progress.stage_type == StageType.LISTENING:
+        ## 평가 result
+        _clear_score = evaluate(EvalutionType.CLEAR_TIME,result.result_time)
+        _wrong_score = evaluate(EvalutionType.WRONG_INDEX,len(result.wrong_idx))
+        _total_score = _clear_score+_wrong_score
+        # update progress result
+        _result = ProgressResult(
+            grade=grade(_total_score),
+            average_score=_total_score,
+            scores=[
+                ProgressScore(score=_clear_score, desc=f"Clear time : {result.result_time}, score : {_clear_score} / 30"),
+                ProgressScore(score=_wrong_score, desc=f"Number of failures : {len(result.wrong_idx)}, score : {_wrong_score} / 70"),
+            ]
+        )
+    else:
+        _result = ProgressResult(
+            scores=user_progress.result['scores']
+        )
+        _average_score = average_score(_result.scores)
+        _result.average_score = _average_score
+        _result.grade = grade(_average_score)
+    logger.info(_result)        
     ## 결과 및 완료 처리
     user_progress.result = _result.model_dump(mode='json')
     user_progress.state_type = ProgressState.DONE
