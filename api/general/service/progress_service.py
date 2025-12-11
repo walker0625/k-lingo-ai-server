@@ -18,16 +18,21 @@ class ProgressRLInfo(ProgressInfo):
     result_time: int        # stage progress time(second)
     wrong_idx: list[int]    # incorrect answer index list
     
-class ProgressResult(BaseModel):
-    grade: GradeType            # Grade for points
-    average_score: float        # point ( 0 ~ 100)
-    top_percent: float | None   # Grades are in the top few percen
-    
-class WriteProgressResult(ProgressResult):
-    pass
+class ProgressScore(BaseModel):
+    score: float
+    desc: str
 
-class SpeakProgressResult(ProgressResult):
-    pass
+class ProgressResult(BaseModel):
+    grade: GradeType = GradeType.F     # Grade for points
+    average_score: float = 0.0         # point ( 0 ~ 100)
+    top_percent: float = 0.0           # Grades are in the top few percen
+    scores: list[ProgressScore] = []   # detailed scores
+    
+# class WriteProgressResult(ProgressResult):
+#     pass
+
+# class SpeakProgressResult(ProgressResult):
+#     pass
 
 def evaluate_reading_grade(stage_progress:ProgressRLInfo):
     _clear_score = evaluate(EvalutionType.CLEAR_TIME, stage_progress.result_time)

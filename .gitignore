@@ -22,7 +22,7 @@ volumes/
 docker-compose.yml
 ## masterdata
 masterdata/
-## ipynb
-ipynb/
+## test files
+temp/
 ## test main
 apptest.py

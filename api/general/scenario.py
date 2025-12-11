@@ -11,7 +11,7 @@ from api.general.service.scenario_service_RL import gen_read_or_listen_quest
 from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo, QuestWriteInfo, QuestSpeakInfo
 from db.redis import StateStore
 from db.model.progress import ProgressResponse, ProgressState, Progress #, ProgressCreate
-from .service.progress_service import ProgressRLInfo, ProgressResult
+from .service.progress_service import ProgressRLInfo, ProgressResult, ProgressScore
 from common.evaluation import EvalutionType, evaluate, grade
 ## logger
 from loguru import logger
@@ -312,7 +312,11 @@ async def stage_result(result: ProgressRLInfo, session: SessionDep):
     _result = ProgressResult(
         grade=grade(_total_score),
         average_score=_total_score,
-        top_percent=None ## 구현 필요 => 해당 시나리오, 스테이지에 대한 완료 결과만 읽어 (소팅인덱스+1)/갯수로 결과 생성
+        scores=[
+            ProgressScore(score=_clear_score, desc=f"Clear time : {result.result_time}, score : {_clear_score} / 30"),
+            ProgressScore(score=_wrong_score, desc=f"Number of failures : {len(result.wrong_idx)}, score : {_wrong_score} / 70"),
+        ],
+        top_percent=0.0
     )
     ## 결과 및 완료 처리
     user_progress.result = _result.model_dump(mode='json')
