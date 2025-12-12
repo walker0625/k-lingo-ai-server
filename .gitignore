@@ -26,3 +26,4 @@ masterdata/
 ipynb/
 ## test main
 apptest.py
+vllm_test.ipynb

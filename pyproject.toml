@@ -36,7 +36,6 @@ dependencies = [
     "langgraph>=0.4.5",
     "sqladmin[full]>=0.22.0",
     "uvicorn>=0.38.0",
-    "psycopg2>=2.9.11",
     "redis>=7.1.0",
     "librosa>=0.11.0",
 ]
