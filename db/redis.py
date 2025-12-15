@@ -1,5 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
 import os, json
 import redis.asyncio as redis
+from redis import Redis
+from rq import Queue
 from typing import Dict, Any
 from enum import Enum
 from db.model.progress import ProgressResponse
@@ -16,6 +20,8 @@ class RedisPageType(Enum):
 REDIS_HOST = os.environ["REDIS_HOST"]
 REDIS_PORT = int(os.environ["REDIS_PORT"])
 REDIS_EXPIRE_SECOND = int(os.environ["REDIS_EXPIRE_SECOND"])
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDIS_QUEUE_NAME = os.getenv("REDIS_QUEUE_NAME", "default")
 
 REDIS_PAGE_MAP = {
     RedisPageType.CURRENT_STAGE     : "KLINGO-CURRENT",      ## 현재 진행 시나리오
@@ -137,3 +143,37 @@ class StateStore:
             username
         )
         return json.loads(data)
+
+
+class QueueStore:
+    """
+        SingleTon Redis Queue Class
+        사용 : store = QueueStore(), store.enqueue...
+    """
+    _instance = None
+    def __new__(cls, *args, **kwargs):
+        ## instance 생성용
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls.queue_store = None
+        return cls._instance
+    
+    def __init__(self) -> None:
+        if self.queue_store is None:
+            self.queue_store = Queue(
+                REDIS_QUEUE_NAME,
+                connection= Redis(
+                        host=REDIS_HOST,
+                        port=REDIS_PORT,
+                        db=REDIS_DB
+                    )
+            )
+
+    def enqueue(self, func, *args, **kwargs):
+        """
+            Add a task to the task queue
+        """
+        if self.queue_store:
+            job = self.queue_store.enqueue(func, *args, **kwargs)
+            return job
+        return None    

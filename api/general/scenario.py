@@ -8,7 +8,9 @@ from db.model.scenario import (
     Scenario,ScenarioResponse, Stage, StageType, QuestLevel, ReadingQuest, ListeningQuest
 )
 from api.general.service.scenario_service_RL import gen_read_or_listen_quest
-from api.general.service.scenario_dto import QuestBase, QuestReadInfo, QuestListenInfo, QuestWriteInfo, QuestSpeakInfo
+from api.general.service.scenario_dto import(
+    QuestBase, QuestReadInfo, QuestListenInfo, QuestWriteInfo, QuestSpeakInfo, WriteData, SpeakData
+)
 from db.redis import StateStore
 from db.model.progress import ProgressResponse, ProgressState, Progress #, ProgressCreate
 from .service.progress_service import ProgressRLInfo, ProgressResult, ProgressScore, average_score
@@ -145,21 +147,41 @@ async def get_current_stage_by_type(
         quest_info.index = scenario_id ## 시나리오 번호로 변경하여 전송
         quest_info.room_id = room_id   ## 해당 게임룸 번호로 변경
     else:
-        ## 저장된 것이 없는 경우 Writing, Speaking => Redis 사전 생성 정보 조회 후 리턴
-        quest_info = await store.load_ready_stage(_stage_type,current_user.username)
-        if not quest_info:
+        ## Redis에 사전 생성된 Writing, Speaking 정보 조회 후 리턴
+        ready_info = await store.load_ready_stage(_stage_type,current_user.username)
+        # quest_info = await store.load_ready_stage(_stage_type,current_user.username)
+        if not ready_info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Your interview data is required!"
-            )            
+                detail="Your interview data is required or system is creating scenario data!"
+            )
+        logger.info(ready_info)
+        if _stage_type == StageType.WRITING:
+            quest_info = QuestWriteInfo(
+                index=1, difficulty=QuestLevel.EASY,
+                room_id=room_id,
+                question=[]
+            )
+        elif _stage_type == StageType.SPEAKING:
+            quest_info = QuestSpeakInfo(
+                index=1, difficulty=QuestLevel.EASY,
+                room_id=room_id,
+                audio=[]
+            )
+        for item in ready_info:
+            if _stage_type == StageType.WRITING:
+                quest_info.question.append(WriteData.model_validate(item, from_attributes=True))
+            elif _stage_type == StageType.SPEAKING:
+                quest_info.audio.append(SpeakData.model_validate(item, from_attributes=True))
         logger.info(quest_info)
     progress = Progress(
         user_id=current_user.id,
         scenario_id=scenario_id,
         room_id=room_id,
         stage_type=StageType(stage_type),
-        scenario=quest_info.model_dump(mode='json') \
-            if _stage_type == StageType.READING or _stage_type == StageType.LISTENING else quest_info
+        scenario=quest_info.model_dump(mode='json')
+        # quest_info.model_dump(mode='json') \
+        #     if _stage_type == StageType.READING or _stage_type == StageType.LISTENING else quest_info
     )
     logger.info("****** new progress")
     logger.info(progress)
@@ -265,7 +287,7 @@ async def get_current_stage_by_type(
 @router.post("/stage/result/post", response_model=ProgressResult, status_code=status.HTTP_201_CREATED)
 async def stage_result(result: ProgressRLInfo, session: SessionDep):
     """
-        Reading, Listening Stage 결과 처리 ( state type은 디폴트값으로 진행 )
+        Reading, Listening, Writing, Speaking Stage 결과 처리 ( Stage Type(읽기:1, 듣기:2, 쓰기:3, 말하기:4), State Type은 디폴트값으로 진행 )
     """
     # Check if user exists
     statement = select(User).where(User.id == result.user_id)
