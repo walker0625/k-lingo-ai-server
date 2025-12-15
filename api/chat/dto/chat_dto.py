@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
-    system_prompt: str
+    context: str
     user_prompt: str
 
 class ChatResponse(BaseModel):
