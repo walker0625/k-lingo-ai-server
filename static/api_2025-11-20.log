@@ -1,0 +1,120 @@
+2025-11-20 12:02:46 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 12:02:46 | INFO | Response: status=200 completed_in=2.61ms
+2025-11-20 12:02:46 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 12:02:47 | INFO | Response: status=200 completed_in=51.42ms
+2025-11-20 12:04:29 | INFO | Request: POST http://localhost:8104/users/register body={
+  "username": "klingo1",
+  "email": "klingo1@abc.com",
+  "password": "klingo"
+}
+2025-11-20 13:24:36 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"email\": \"klingo1@abc.com\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 13:24:36 | INFO | Response: status=201 completed_in=176.69ms
+2025-11-20 13:30:14 | INFO | Request: POST http://localhost:8104/vector/embedding body="{\n  \"text\": \"\ube68\uac04\uc0c9 \ucf54\ub07c\ub9ac\ub97c \ucc3e\uc544\ub77c\"\n}"
+2025-11-20 13:37:15 | INFO | Request: POST http://localhost:8104/vector/embedding body="{\n  \"text\": \"\ube68\uac04\uc0c9 \ucf54\ub07c\ub9ac\ub97c \ucc3e\uc544\ub77c\"\n}"
+2025-11-20 13:37:15 | INFO | POST /vector/embedding - 500 - 4.4229s - Error: 'NoneType' object has no attribute 'encode'
+2025-11-20 14:06:26 | INFO | Request: POST http://localhost:8104/vector/embedding body="{\n  \"text\": \"\ube68\uac04\uc0c9 \ucf54\ub07c\ub9ac\ub97c \ucc3e\uc544\ub77c\"\n}"
+2025-11-20 14:06:27 | INFO | Response: status=200 completed_in=1225.57ms
+2025-11-20 14:07:28 | INFO | Request: POST http://localhost:8104/vector/retriever?top_k=5 body="{\n  \"text\": \"\ucf54\ub07c\ub9ac\"\n}"
+2025-11-20 14:07:28 | INFO | Response: status=200 completed_in=39.07ms
+2025-11-20 16:50:59 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 16:50:59 | INFO | Response: status=200 completed_in=3.99ms
+2025-11-20 16:50:59 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 16:50:59 | INFO | Response: status=200 completed_in=35.55ms
+2025-11-20 16:53:14 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"\uc624\ub9ac\",\n  \"desc\": \"\uc624\ub9ac \uce90\ub9ad\ud130\"\n}"
+2025-11-20 16:53:14 | INFO | POST /characters/post - 500 - 7.7603s - Error: When initializing mapper Mapper[User(user)], expression 'UserCharacter' failed to locate a name ('UserCharacter'). If this is a class name, consider adding this relationship() to the <class 'db.model.user.User'> class after both dependent classes have been defined.
+2025-11-20 17:31:39 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 17:31:39 | INFO | Response: status=200 completed_in=5.93ms
+2025-11-20 17:31:39 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 17:31:39 | INFO | Response: status=200 completed_in=37.34ms
+2025-11-20 17:32:46 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"KLINGO\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 17:32:46 | INFO | POST /users/register - 500 - 6.1207s - Error: reverse_property 'user' on relationship Character.users references relationship UserCharacter.user, which does not reference mapper Mapper[Character(character)]
+2025-11-20 17:56:27 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"KLINGO\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 17:56:29 | INFO | POST /users/register - 500 - 1494.0341s - Error: 'UserCreate' object has no attribute 'email'
+2025-11-20 18:01:06 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"KLINGO\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 18:01:07 | INFO | Response: status=201 completed_in=1471.74ms
+2025-11-20 18:01:18 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo2\",\n  \"fullname\": \"KLINGO\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 18:01:19 | INFO | Response: status=201 completed_in=330.81ms
+2025-11-20 18:02:12 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"duck\",\n  \"desc\": \"duck avata\"\n}"
+2025-11-20 18:02:13 | INFO | Response: status=201 completed_in=606.02ms
+2025-11-20 18:02:44 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"owl\",\n  \"desc\": \"owl avata\"\n}"
+2025-11-20 18:02:46 | INFO | POST /characters/post - 500 - 2122.9987s - Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "character_type_index"
+DETAIL:  Key (type_code, idx)=(ABATAR, 0) already exists.
+
+[SQL: INSERT INTO character (type_code, idx, name, "desc", created_at, updated_at) VALUES (%(type_code)s, %(idx)s, %(name)s, %(desc)s, %(created_at)s, %(updated_at)s) RETURNING character.id]
+[parameters: {'type_code': 'ABATAR', 'idx': 0, 'name': 'owl', 'desc': 'owl avata', 'created_at': datetime.datetime(2025, 11, 20, 18, 2, 45, 794988), 'updated_at': datetime.datetime(2025, 11, 20, 18, 2, 45, 795277)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-11-20 18:07:49 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 18:07:49 | INFO | Response: status=200 completed_in=1.89ms
+2025-11-20 18:07:49 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 18:07:49 | INFO | Response: status=200 completed_in=50.31ms
+2025-11-20 18:08:31 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"owl\",\n  \"desc\": \"owl avata\"\n}"
+2025-11-20 18:08:33 | INFO | POST /characters/post - 500 - 2000.8078s - Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "character_type_index"
+DETAIL:  Key (type_code, idx)=(ABATAR, 0) already exists.
+
+[SQL: INSERT INTO character (type_code, idx, name, "desc", created_at, updated_at) VALUES (%(type_code)s, %(idx)s, %(name)s, %(desc)s, %(created_at)s, %(updated_at)s) RETURNING character.id]
+[parameters: {'type_code': 'ABATAR', 'idx': 0, 'name': 'owl', 'desc': 'owl avata', 'created_at': datetime.datetime(2025, 11, 20, 18, 8, 32, 450958), 'updated_at': datetime.datetime(2025, 11, 20, 18, 8, 32, 451369)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-11-20 18:12:05 | INFO | Request: POST http://localhost:8104/store/buy/character body="{\n  \"user_id\": 1,\n  \"character_id\": 1,\n  \"desc\": \"buy duck abatar\"\n}"
+2025-11-20 18:12:05 | INFO | POST /store/buy/character - 500 - 3.2985s - Error: username
+2025-11-20 18:17:25 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 18:17:25 | INFO | Response: status=200 completed_in=3.36ms
+2025-11-20 18:17:25 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 18:17:25 | INFO | Response: status=200 completed_in=34.90ms
+2025-11-20 18:17:58 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"K LINGO\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 18:17:58 | INFO | Response: status=201 completed_in=116.46ms
+2025-11-20 18:18:38 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"duck\",\n  \"desc\": \"duck avata\"\n}"
+2025-11-20 18:18:40 | INFO | Response: status=201 completed_in=1935.57ms
+2025-11-20 18:22:56 | INFO | Request: POST http://localhost:8104/store/buy/character body="{\n  \"user_id\": 1,\n  \"character_id\": 1,\n  \"desc\": \"buy duck avata\"\n}"
+2025-11-20 18:23:00 | INFO | POST /store/buy/character - 500 - 3644.2993s - Error: 2 validation errors:
+  {'type': 'missing', 'loc': ('response', 'username'), 'msg': 'Field required', 'input': UserCharacter(id=1, is_used=False, created_at=datetime.datetime(2025, 11, 20, 18, 22, 58, 626564), character_id=1, user_id=1, desc='buy duck avata', updated_at=datetime.datetime(2025, 11, 20, 18, 22, 58, 626842))}
+  {'type': 'missing', 'loc': ('response', 'character_name'), 'msg': 'Field required', 'input': UserCharacter(id=1, is_used=False, created_at=datetime.datetime(2025, 11, 20, 18, 22, 58, 626564), character_id=1, user_id=1, desc='buy duck avata', updated_at=datetime.datetime(2025, 11, 20, 18, 22, 58, 626842))}
+
+2025-11-20 18:36:02 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 18:36:02 | INFO | Response: status=200 completed_in=3.08ms
+2025-11-20 18:36:02 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 18:36:02 | INFO | Response: status=200 completed_in=47.34ms
+2025-11-20 18:36:27 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"klingo\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 18:36:30 | INFO | Response: status=201 completed_in=3204.12ms
+2025-11-20 18:36:57 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"duck\",\n  \"desc\": \"duck avata\"\n}"
+2025-11-20 18:36:59 | INFO | Response: status=201 completed_in=2923.26ms
+2025-11-20 18:39:35 | INFO | Request: POST http://localhost:8104/store/buy/character body="{\n  \"user_id\": 1,\n  \"character_id\": 1,\n  \"desc\": \"buy avatar\"\n}"
+2025-11-20 18:39:38 | INFO | POST /store/buy/character - 500 - 2484.2815s - Error: 2 validation errors:
+  {'type': 'missing', 'loc': ('response', 'username'), 'msg': 'Field required', 'input': UserCharacter(id=1, is_used=False, created_at=datetime.datetime(2025, 11, 20, 18, 39, 37, 165078), character_id=1, user_id=1, desc='buy avatar', updated_at=datetime.datetime(2025, 11, 20, 18, 39, 37, 165383))}
+  {'type': 'missing', 'loc': ('response', 'character_name'), 'msg': 'Field required', 'input': UserCharacter(id=1, is_used=False, created_at=datetime.datetime(2025, 11, 20, 18, 39, 37, 165078), character_id=1, user_id=1, desc='buy avatar', updated_at=datetime.datetime(2025, 11, 20, 18, 39, 37, 165383))}
+
+2025-11-20 18:49:44 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 18:49:44 | INFO | Response: status=200 completed_in=3.44ms
+2025-11-20 18:49:44 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 18:49:44 | INFO | Response: status=200 completed_in=34.73ms
+2025-11-20 18:50:07 | INFO | Request: POST http://localhost:8104/users/register body="{\n  \"username\": \"klingo1\",\n  \"fullname\": \"klingo\",\n  \"password\": \"klingo\"\n}"
+2025-11-20 18:50:10 | INFO | Response: status=201 completed_in=2921.21ms
+2025-11-20 18:50:34 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"duck\",\n  \"desc\": \"duck avatar\"\n}"
+2025-11-20 18:50:36 | INFO | Response: status=201 completed_in=2548.61ms
+2025-11-20 18:50:55 | INFO | Request: POST http://localhost:8104/store/buy/character body="{\n  \"user_id\": 1,\n  \"character_id\": 1,\n  \"desc\": \"buy duck avatar\"\n}"
+2025-11-20 18:50:59 | INFO | Response: status=201 completed_in=3933.45ms
+2025-11-20 18:52:06 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"owl\",\n  \"desc\": \"owl avatar\"\n}"
+2025-11-20 18:52:07 | INFO | POST /characters/post - 500 - 1450.7625s - Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "character_type_index"
+DETAIL:  Key (type_code, idx)=(AVATAR, 0) already exists.
+
+[SQL: INSERT INTO character (type_code, idx, name, "desc", created_at, updated_at) VALUES (%(type_code)s, %(idx)s, %(name)s, %(desc)s, %(created_at)s, %(updated_at)s) RETURNING character.id]
+[parameters: {'type_code': 'AVATAR', 'idx': 0, 'name': 'owl', 'desc': 'owl avatar', 'created_at': datetime.datetime(2025, 11, 20, 18, 52, 6, 552572), 'updated_at': datetime.datetime(2025, 11, 20, 18, 52, 6, 553234)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-11-20 18:57:49 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 18:57:49 | INFO | Response: status=200 completed_in=3.75ms
+2025-11-20 18:57:49 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 18:57:49 | INFO | Response: status=200 completed_in=43.37ms
+2025-11-20 18:58:10 | INFO | Request: GET http://localhost:8104/characters/?name=klingo1 body=None
+2025-11-20 18:58:17 | INFO | Response: status=200 completed_in=7148.06ms
+2025-11-20 18:59:00 | INFO | Request: GET http://localhost:8104/characters/?name=duck body=None
+2025-11-20 18:59:00 | INFO | Response: status=200 completed_in=150.75ms
+2025-11-20 18:59:18 | INFO | Request: POST http://localhost:8104/characters/post body="{\n  \"type_code\": 1,\n  \"name\": \"owl\",\n  \"desc\": \"owl avata\"\n}"
+2025-11-20 18:59:20 | INFO | POST /characters/post - 500 - 1382.9989s - Error: (psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint "character_type_index"
+DETAIL:  Key (type_code, idx)=(AVATAR, 0) already exists.
+
+[SQL: INSERT INTO character (type_code, idx, name, "desc", created_at, updated_at) VALUES (%(type_code)s, %(idx)s, %(name)s, %(desc)s, %(created_at)s, %(updated_at)s) RETURNING character.id]
+[parameters: {'type_code': 'AVATAR', 'idx': 0, 'name': 'owl', 'desc': 'owl avata', 'created_at': datetime.datetime(2025, 11, 20, 18, 59, 19, 941178), 'updated_at': datetime.datetime(2025, 11, 20, 18, 59, 19, 941510)}]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2025-11-20 19:02:23 | INFO | Request: GET http://localhost:8104/docs body=None
+2025-11-20 19:02:23 | INFO | Response: status=200 completed_in=1.12ms
+2025-11-20 19:02:23 | INFO | Request: GET http://localhost:8104/openapi.json body=None
+2025-11-20 19:02:23 | INFO | Response: status=200 completed_in=4.74ms

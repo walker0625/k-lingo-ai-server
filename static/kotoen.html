@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한국어 영어 발음기호 변환기</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .input-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result-box {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .result-header h3 {
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .copy-btn.copied {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+
+        .result-text {
+            font-size: 1.3rem;
+            font-family: 'Courier New', monospace;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .examples {
+            margin-top: 20px;
+        }
+
+        .examples h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .example-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f5f7fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .example-item:hover {
+            background: #e5e7eb;
+            transform: translateX(5px);
+        }
+
+        .example-korean {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .example-pronunciation {
+            font-family: 'Courier New', monospace;
+            color: #667eea;
+            font-size: 1rem;
+        }
+
+        .info-box {
+            background: #e0f2fe;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #0284c7;
+            margin-top: 20px;
+        }
+
+        .info-box h4 {
+            color: #0284c7;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #333;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .example-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔤 한국어 영어 발음기호 변환기</h1>
+            <p>한글을 영어 발음 표기로 변환합니다</p>
+        </div>
+
+        <div class="card">
+            <div class="input-group">
+                <label for="koreanInput">한국어 입력</label>
+                <textarea 
+                    id="koreanInput" 
+                    rows="4" 
+                    placeholder="변환할 한글을 입력하세요... (예: 안녕하세요)"
+                ></textarea>
+            </div>
+
+            <button class="btn" onclick="convertPronunciation()">
+                🔊 발음기호로 변환
+            </button>
+
+            <div class="result-box" id="resultBox">
+                <div class="result-header">
+                    <h3>영어 발음 표기</h3>
+                    <button class="copy-btn" id="copyBtn" onclick="copyResult()">
+                        📋 복사
+                    </button>
+                </div>
+                <div class="result-text" id="resultText"></div>
+            </div>
+
+            <div class="examples">
+                <h3>📝 예시 (클릭하여 사용)</h3>
+                <div class="example-item" onclick="useExample('안녕하세요')">
+                    <span class="example-korean">안녕하세요</span>
+                    <span class="example-pronunciation">an-nyeong-ha-se-yo</span>
+                </div>
+                <div class="example-item" onclick="useExample('감사합니다')">
+                    <span class="example-korean">감사합니다</span>
+                    <span class="example-pronunciation">gam-sa-ham-ni-da</span>
+                </div>
+                <div class="example-item" onclick="useExample('대한민국')">
+                    <span class="example-korean">대한민국</span>
+                    <span class="example-pronunciation">dae-han-min-guk</span>
+                </div>
+                <div class="example-item" onclick="useExample('사랑해요')">
+                    <span class="example-korean">사랑해요</span>
+                    <span class="example-pronunciation">sa-rang-hae-yo</span>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h4>💡 사용 안내</h4>
+                <ul>
+                    <li>한글을 로마자 발음으로 변환합니다</li>
+                    <li>음절은 하이픈(-)으로 구분됩니다</li>
+                    <li>예시를 클릭하면 자동으로 변환됩니다</li>
+                    <li>복사 버튼으로 결과를 쉽게 복사할 수 있습니다</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const pronunciationMap = {
+            'ㄱ': 'g', 'ㄲ': 'kk', 'ㄴ': 'n', 'ㄷ': 'd', 'ㄸ': 'tt',
+            'ㄹ': 'r', 'ㅁ': 'm', 'ㅂ': 'b', 'ㅃ': 'pp', 'ㅅ': 's',
+            'ㅆ': 'ss', 'ㅇ': '', 'ㅈ': 'j', 'ㅉ': 'jj', 'ㅊ': 'ch',
+            'ㅋ': 'k', 'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 'h',
+            
+            'ㅏ': 'a', 'ㅐ': 'ae', 'ㅑ': 'ya', 'ㅒ': 'yae', 'ㅓ': 'eo',
+            'ㅔ': 'e', 'ㅕ': 'yeo', 'ㅖ': 'ye', 'ㅗ': 'o', 'ㅘ': 'wa',
+            'ㅙ': 'wae', 'ㅚ': 'oe', 'ㅛ': 'yo', 'ㅜ': 'u', 'ㅝ': 'wo',
+            'ㅞ': 'we', 'ㅟ': 'wi', 'ㅠ': 'yu', 'ㅡ': 'eu', 'ㅢ': 'ui',
+            'ㅣ': 'i'
+        };
+
+        const finalConsonants = {
+            'ㄱ': 'k', 'ㄲ': 'k', 'ㄳ': 'k', 'ㄴ': 'n',
+            'ㄵ': 'n', 'ㄶ': 'n', 'ㄷ': 't', 'ㄹ': 'l',
+            'ㄺ': 'k', 'ㄻ': 'm', 'ㄼ': 'p', 'ㄽ': 'l',
+            'ㄾ': 'l', 'ㄿ': 'p', 'ㅀ': 'l', 'ㅁ': 'm',
+            'ㅂ': 'p', 'ㅄ': 'p', 'ㅅ': 't', 'ㅆ': 't',
+            'ㅇ': 'ng', 'ㅈ': 't', 'ㅊ': 't', 'ㅋ': 'k',
+            'ㅌ': 't', 'ㅍ': 'p', 'ㅎ': 't'
+        };
+
+        const CHO = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+        const JUNG = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'];
+        const JONG = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+
+        function decomposeHangul(char) {
+            const code = char.charCodeAt(0) - 0xAC00;
+            if (code < 0 || code > 11171) return null;
+            
+            const cho = Math.floor(code / 588);
+            const jung = Math.floor((code % 588) / 28);
+            const jong = code % 28;
+            
+            return {
+                cho: CHO[cho],
+                jung: JUNG[jung],
+                jong: JONG[jong]
+            };
+        }
+
+        function koreanToEnglish(text) {
+            let result = [];
+            
+            for (let char of text) {
+                if (char === ' ') {
+                    result.push(' ');
+                    continue;
+                }
+                
+                const decomposed = decomposeHangul(char);
+                
+                if (decomposed) {
+                    let syllable = '';
+                    syllable += decomposed.cho in pronunciationMap ? pronunciationMap[decomposed.cho] : decomposed.cho;
+                    syllable += decomposed.jung in pronunciationMap ? pronunciationMap[decomposed.jung] : decomposed.jung;
+                    
+                    if (decomposed.jong) {
+                        syllable += decomposed.jong in finalConsonants ? finalConsonants[decomposed.jong] : decomposed.jong;
+                    }
+                    
+                    result.push(syllable);
+                } else {
+                    result.push(char);
+                }
+            }
+            
+            let pronunciation = result.join('-');
+            pronunciation = pronunciation.replace(/- /g, ' ').replace(/ -/g, ' ');
+            
+            return pronunciation;
+        }
+
+        function convertPronunciation() {
+            const input = document.getElementById('koreanInput').value.trim();
+            
+            if (!input) {
+                alert('한글을 입력해주세요!');
+                return;
+            }
+            
+            const result = koreanToEnglish(input);
+            document.getElementById('resultText').textContent = result;
+            document.getElementById('resultBox').classList.add('show');
+            
+            const copyBtn = document.getElementById('copyBtn');
+            copyBtn.textContent = '📋 복사';
+            copyBtn.classList.remove('copied');
+        }
+
+        function copyResult() {
+            const resultText = document.getElementById('resultText').textContent;
+            navigator.clipboard.writeText(resultText).then(() => {
+                const copyBtn = document.getElementById('copyBtn');
+                copyBtn.textContent = '✅ 복사됨!';
+                copyBtn.classList.add('copied');
+                
+                setTimeout(() => {
+                    copyBtn.textContent = '📋 복사';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function useExample(text) {
+            document.getElementById('koreanInput').value = text;
+            convertPronunciation();
+        }
+
+        document.getElementById('koreanInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                convertPronunciation();
+            }
+        });
+    </script>
+</body>
+</html>

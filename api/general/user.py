@@ -1,16 +1,14 @@
-import os, logging
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from typing import Optional, Annotated
-from passlib.context import CryptContext
-from db.model.user import User, UserCreate, UserResponse, Token, TokenData
+import os
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
+from typing import Annotated
+from db.model.user import User, UserCreate, UserResponse, Token
+from db.model.character import CharacterType
 from db.session import  SessionDep, get_user_by_username, get_password_hash
 from db.session import authenticate_user, create_access_token, get_current_active_user
-
 ## logger
-logger = logging.getLogger("app")
+from loguru import logger
 ## user router
 router = APIRouter()
 
@@ -31,8 +29,8 @@ def register(user: UserCreate, session: SessionDep):
     hashed_password = get_password_hash(user.password)
     db_user = User(
         username=user.username,
-        email=user.email,
-        hashed_password=hashed_password
+        fullname=user.fullname,
+        password=hashed_password
     )
     session.add(db_user)
     session.commit()
@@ -61,13 +59,30 @@ def login(
 def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):
-    return current_user
+    _user = UserResponse(
+        id = current_user.id,
+        username = current_user.username,
+        fullname = current_user.fullname,
+        is_active = current_user.is_active,
+        my_avatar = None,
+        my_color = None
+    )
+    user_characters = current_user.user_character
+    for _char in user_characters:
+        if _char.is_used:
+            if _char.character.type_code == CharacterType.AVATAR:
+                _user.my_avatar = _char.character.name
+            elif _char.character.type_code == CharacterType.COLOR:
+                _user.my_color = _char.character.name
+    
+    return _user
 
-@router.get("/protected")
-def protected_route(
-    current_user: Annotated[User, Depends(get_current_active_user)]
-):
-    return {
-        "message": f"Hello {current_user.username}! This is a protected route.",
-        "user_id": current_user.id
-    }
+# @router.get("/host")
+# def protected_route(
+#     current_user: Annotated[User, Depends(get_current_active_user)]
+# ):
+#     ## how to check host user.
+#     return {
+#         "message": f"Hello host player, {current_user.username}!",
+#         "user_id": current_user.id
+#     }

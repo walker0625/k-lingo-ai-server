@@ -5,7 +5,24 @@ build/
 dist/
 wheels/
 *.egg-info
-
 # Virtual environments
 .venv
 .env
+uv.lock
+## log folder
+logs/
+## static folder
+static/audios/
+static/images/
+static/input/
+static/output/
+volumes/
+
+# 기존 내용 아래에 추가
+docker-compose.yml
+## masterdata
+masterdata/
+## ipynb
+ipynb/
+## test main
+apptest.py

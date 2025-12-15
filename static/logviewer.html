@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서버 로그 뷰어</title>
+    <link rel="stylesheet" href="web/logviewer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ 서버 로그 뷰어</h1>
+            <p>날짜를 선택하여 해당 일자의 로그 파일을 조회합니다</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>📅 날짜 선택</label>
+                <input type="date" id="dateInput" max="2099-12-31">
+                <div class="quick-dates">
+                    <button class="quick-date-btn" onclick="setQuickDate(0)">오늘</button>
+                    <button class="quick-date-btn" onclick="setQuickDate(1)">어제</button>
+                    <button class="quick-date-btn" onclick="setQuickDate(2)">2일 전</button>
+                    <button class="quick-date-btn" onclick="setQuickDate(7)">7일 전</button>
+                </div>
+            </div>
+            <button id="loadBtn" onclick="loadLogFile()">로그 불러오기</button>
+        </div>
+
+        <div class="content">
+            <div id="emptyState" class="empty-state">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <h3>날짜를 선택하세요</h3>
+                <p>조회하고 싶은 날짜를 선택하고 '로그 불러오기' 버튼을 클릭하세요</p>
+            </div>
+
+            <div id="loadingState" class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>로그 파일을 불러오는 중...</p>
+            </div>
+
+            <div id="logContent" style="display: none;">
+                <div class="filter-section">
+                    <label style="margin-bottom: 10px;">🔍 로그 레벨 필터</label>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" onclick="filterLogs('all')">전체</button>
+                        <button class="filter-btn" onclick="filterLogs('error')">❌ ERROR</button>
+                        <button class="filter-btn" onclick="filterLogs('warning')">⚠️ WARNING</button>
+                        <button class="filter-btn" onclick="filterLogs('info')">ℹ️ INFO</button>
+                        <button class="filter-btn" onclick="filterLogs('success')">✅ SUCCESS</button>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="number" id="totalLines">0</div>
+                        <div class="label">총 라인 수</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="errorCount">0</div>
+                        <div class="label">에러</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="warningCount">0</div>
+                        <div class="label">경고</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="number" id="userCheckCount">0</div>
+                        <div class="label">체크</div>
+                    </div>
+                </div>
+
+                <div class="log-info">
+                    <p><strong>파일명:</strong> <span id="fileName">-</span></p>
+                    <p><strong>로드 시간:</strong> <span id="loadTime">-</span></p>
+                </div>
+
+                <div class="log-viewer" id="logViewer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFilter = 'all';
+        let allLogLines = [];
+
+        // 페이지 로드 시 오늘 날짜로 초기화
+        window.addEventListener('DOMContentLoaded', () => {
+            const today = new Date();
+            document.getElementById('dateInput').valueAsDate = today;
+            
+            // 오늘 날짜의 최대값 설정
+            const maxDate = today.toISOString().split('T')[0];
+            document.getElementById('dateInput').max = maxDate;
+        });
+
+        // 빠른 날짜 선택
+        function setQuickDate(daysAgo) {
+            const date = new Date();
+            date.setDate(date.getDate() - daysAgo);
+            document.getElementById('dateInput').valueAsDate = date;
+        }
+
+        async function loadLogFile() {
+            const dateInput = document.getElementById('dateInput');
+            
+            if (!dateInput.value) {
+                alert('날짜를 선택해주세요.');
+                return;
+            }
+
+            const selectedDate = dateInput.value; // YYYY-MM-DD 형식
+            const filename = `api_${selectedDate}.log`;
+
+            showLoading();
+            
+            try {
+                // 서버에서 로그 파일 내용 가져오기
+                console.log(`read log : {filename}`)
+                const response = await fetch(`/logs/${filename}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('해당 날짜의 로그 파일이 존재하지 않습니다.');
+                    }
+                    throw new Error('로그 파일을 읽을 수 없습니다.');
+                }
+                
+                const data = await response.json();
+                displayLogContent(data.result, filename, data.size);
+                
+            } catch (error) {
+                console.error('로그 파일 로드 실패:', error);
+                showError(error.message);
+            }
+        }
+
+        function displayLogContent(content, filename, size) {
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('logContent').style.display = 'block';
+            
+            document.getElementById('fileName').textContent = filename;
+            document.getElementById('loadTime').textContent = new Date().toLocaleString('ko-KR');
+            // document.getElementById('fileSize').textContent = (size / 1024).toFixed(2) + ' KB';
+            
+            const lines = content.split('\n');
+            allLogLines = lines;
+            allLogLines.reverse();
+            
+            let errorCount = 0;
+            let warningCount = 0;
+            let userCheckCount = 0; // 사용자 체크 사항 400 대 에러 코드 확인용
+            
+            lines.forEach(line => {
+                if(line.toLowerCase().includes('response: status=4')) userCheckCount ++;
+                if (line.toLowerCase().includes('error') || line.toLowerCase().includes('exception')) {
+                    errorCount++;
+                } else if (line.toLowerCase().includes('warning') || line.toLowerCase().includes('warn')) {
+                    warningCount++;
+                }
+            });
+            
+            document.getElementById('totalLines').textContent = lines.length.toLocaleString();
+            document.getElementById('errorCount').textContent = errorCount.toLocaleString();
+            document.getElementById('warningCount').textContent = warningCount.toLocaleString();
+            document.getElementById('userCheckCount').textContent = userCheckCount.toLocaleString();
+            
+            currentFilter = 'all';
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.filter-btn').classList.add('active');
+            
+            renderLogLines(lines);
+        }
+
+        function renderLogLines(lines) {
+            const logViewer = document.getElementById('logViewer');
+            logViewer.innerHTML = '';
+            
+            lines.forEach((line, index) => {
+                const div = document.createElement('div');
+                div.className = 'log-line';
+                div.dataset.index = index;
+                
+                const lineLower = line.toLowerCase();
+                if(lineLower.includes('response: status=4')){
+                    div.className += ' log-user-check';
+                    div.dataset.level = 'check';
+                }
+                else if (lineLower.includes('error') || lineLower.includes('exception')) {
+                    div.className += ' log-error';
+                    div.dataset.level = 'error';
+                } else if (lineLower.includes('warning') || lineLower.includes('warn')) {
+                    div.className += ' log-warning';
+                    div.dataset.level = 'warning';
+                } else if (lineLower.includes('info')) {
+                    div.className += ' log-info-line';
+                    div.dataset.level = 'info';
+                } else if (lineLower.includes('success') || lineLower.includes('complete')) {
+                    div.className += ' log-success';
+                    div.dataset.level = 'success';
+                } else {
+                    div.dataset.level = 'other';
+                }
+                
+                div.textContent = line || ' ';
+                logViewer.appendChild(div);
+            });
+        }
+
+        function filterLogs(level) {
+            currentFilter = level;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            const logLines = document.querySelectorAll('.log-line');
+            
+            logLines.forEach(line => {
+                if (level === 'all') {
+                    line.style.display = 'block';
+                } else {
+                    line.style.display = line.dataset.level === level ? 'block' : 'none';
+                }
+            });
+        }
+
+        function showLoading() {
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('logContent').style.display = 'none';
+            document.getElementById('loadingState').style.display = 'block';
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('logContent').style.display = 'none';
+            
+            const emptyState = document.getElementById('emptyState');
+            emptyState.innerHTML = `
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 80px; height: 80px; margin-bottom: 20px; opacity: 0.5; color: #f44336;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <h3 style="color: #f44336; margin-bottom: 10px;">⚠️ 오류 발생</h3>
+                <p style="color: #c62828;">${message}</p>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px;">다시 시도</button>
+            `;
+            emptyState.style.display = 'block';
+        }
+
+        // Enter 키로 로그 불러오기
+        document.getElementById('dateInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadLogFile();
+            }
+        });
+    </script>
+</body>
+</html>
