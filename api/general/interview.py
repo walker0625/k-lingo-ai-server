@@ -1,20 +1,26 @@
 ## Processing user character and equipment purchases
-import os, random, json
-from langchain_openai import ChatOpenAI
-from typing import Annotated, Dict, Any
+import random#, os, json
+# from redis import Redis
+# from rq import Queue
+# from langchain_openai import ChatOpenAI
+from typing import Annotated#, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlmodel import Session, select, desc
+# from fastapi.concurrency import run_in_threadpool
+from sqlmodel import select#, Session, desc
 from common.ko_util import korean_to_english_pronunciation
 from db.session import  SessionDep, get_current_active_user
-from db.redis import StateStore
+from db.redis import QueueStore#,StateStore
 from db.model.user import User
-from db.model.scenario import StageType
+# from db.model.scenario import StageType
 from db.model.interview import (
     Interview, UserInterview, InterviewLevel,
     InterviewCreate, InterviewResponse, UserInterviewCreate, UserInterviewResponse
 )
-from api.general.service.scenario_dto import QuestWriteInfo, WriteData, QuestSpeakInfo, SpeakData
-from api.general.scenario import QuestLevel
+from api.general.task.write_scenario_task import WriteScenarioSource, get_writing_questions
+from api.general.task.speak_scenario_task import SpeakScenarioSource, get_speaking_questions
+
+# from api.general.service.scenario_dto import QuestWriteInfo, WriteData, QuestSpeakInfo, SpeakData
+# from api.general.scenario import QuestLevel
 from api.speaking.speaking_service import SpeakingService
 
 ## logger
@@ -152,162 +158,201 @@ async def add_user_answer(
             created_at = _new_answer.created_at
         ))
 
-        ## Writing Stage & Redis 처리
-        background_task.add_task(gen_write_stage_to_redis,session,room_id,_user)
-        ## Speaking Stage & Redis 처리
-        background_task.add_task(gen_speak_stage_to_redis,results,room_id,_user)
+    ## Writing Stage & Redis 처리
+    # await run_in_threadpool(
+    #     background_task.add_task, gen_write_stage_to_redis, session, room_id, _user
+    # )
+    # background_task.add_task(gen_write_stage_to_redis,session,room_id,_user)
+    ## Speaking Stage & Redis 처리
+    # await run_in_threadpool(
+    #     background_task.add_task, gen_speak_stage_to_redis, results, room_id, _user
+    # )
+    # background_task.add_task(gen_speak_stage_to_redis,results,room_id,_user)
         
+    ## redis rq 처리
+    queue_store = QueueStore()
+    logger.info("****** Redis RQ 쓰기 문제 생성 작업 추가 ******")
+    write_source: list[WriteScenarioSource] = []
+    for _answer in results:
+        write_source.append(
+            WriteScenarioSource(
+                kor = _answer.interview_kor,
+                eng = _answer.interview_eng,
+                answer = _answer.answer,
+            )
+        )
+    write_job = queue_store.enqueue(get_writing_questions,_user.username,write_source)
+    # write_job = queue_store.enqueue(get_writing_questions,room_id,_user.username,scenario_source)
+    logger.info(f"쓰기 작업 : {write_job.id} 추가")
+    
+    
+    ## redis rq 처리
+    logger.info("****** Redis RQ 말하기 문제 생성 작업 추가 ******")
+    speak_source: list[SpeakScenarioSource] = []
+    for _answer in results:
+        speak_source.append(
+            SpeakScenarioSource(
+                kor = _answer.interview_kor,
+                eng = _answer.interview_eng,
+                answer = _answer.answer,
+            )
+        )
+    speak_job = queue_store.enqueue(get_speaking_questions,_user.username,speak_source)
+    # write_job = queue_store.enqueue(get_writing_questions,room_id,_user.username,scenario_source)
+    logger.info(f"말하기 작업 : {speak_job.id} 추가")
     return results
-## generate writing stage & save redis
-async def gen_write_stage_to_redis(session: Session, room_id:int, current_user: User):
-    try:
-        logger.info("****** generate write stage")
-        write_problem_json = get_writing_questions(session, current_user.id)
-        store = StateStore()
+
+
+# ## generate writing stage & save redis
+# async def gen_write_stage_to_redis(session: Session, room_id:int, current_user: User):
+#     try:
+#         logger.info("****** generate write stage")
+#         write_problem_json = get_writing_questions(session, current_user.id)
+#         store = StateStore()
         
-        ## write info redis 저장
-        questWriteInfo = QuestWriteInfo(
-            index=1, difficulty=QuestLevel.EASY,
-            room_id=room_id,
-            question=[]
-        )
-        for info in write_problem_json['question']:
-            questWriteInfo.question.append(
-                WriteData.model_validate(info, from_attributes=True)
-            )
-        logger.info(questWriteInfo)
-        await store.save_ready_stage(StageType.WRITING, current_user.username, questWriteInfo.model_dump_json())
-        logger.info("****** generate write stage")
-    except Exception as e:
-        logger.warning(e)
-## generate speaking stage & save redis
-async def gen_speak_stage_to_redis(user_interview:list[UserInterviewResponse],
-                                    room_id:int, current_user: User):
-    try:
-        logger.info("****** generate speak stage")
-        user_id = current_user.id
-        interview_ids = [interview.interview_id for interview in user_interview]
-        speaking_problem_json = SpeakingService().generate_speaking_problem(user_id, interview_ids)
-        store = StateStore()
+#         ## write info redis 저장
+#         questWriteInfo = QuestWriteInfo(
+#             index=1, difficulty=QuestLevel.EASY,
+#             room_id=room_id,
+#             question=[]
+#         )
+#         for info in write_problem_json['question']:
+#             questWriteInfo.question.append(
+#                 WriteData.model_validate(info, from_attributes=True)
+#             )
+#         logger.info(questWriteInfo)
+#         await store.save_ready_stage(StageType.WRITING, current_user.username, questWriteInfo.model_dump_json())
+#         logger.info("****** generate write stage")
+#     except Exception as e:
+#         logger.warning(e)
+# ## generate speaking stage & save redis
+# async def gen_speak_stage_to_redis(user_interview:list[UserInterviewResponse],
+#                                     room_id:int, current_user: User):
+#     try:
+#         logger.info("****** generate speak stage")
+#         user_id = current_user.id
+#         interview_ids = [interview.interview_id for interview in user_interview]
+#         speaking_problem_json = SpeakingService().generate_speaking_problem(user_id, interview_ids)
+#         store = StateStore()
 
-        logger.info(speaking_problem_json)
-        ## speak info redis 저장
-        questSpeakInfo = QuestSpeakInfo(
-            index=1, difficulty=QuestLevel.EASY,
-            room_id=room_id,
-            audio=[]
-        )
-        for info in json.loads(speaking_problem_json)['audio']:
-            speak_data = SpeakData.model_validate(info, from_attributes=True)
-            speak_data.voice_data = info['base64']
-            questSpeakInfo.audio.append(speak_data)
-        logger.info(questSpeakInfo)
-        await store.save_ready_stage(StageType.SPEAKING, current_user.username, questSpeakInfo.model_dump_json())
-        logger.info("****** generate speak stage")
-    except Exception as e:
-        logger.warning(e)
+#         logger.info(speaking_problem_json)
+#         ## speak info redis 저장
+#         questSpeakInfo = QuestSpeakInfo(
+#             index=1, difficulty=QuestLevel.EASY,
+#             room_id=room_id,
+#             audio=[]
+#         )
+#         for info in json.loads(speaking_problem_json)['audio']:
+#             speak_data = SpeakData.model_validate(info, from_attributes=True)
+#             speak_data.voice_data = info['base64']
+#             questSpeakInfo.audio.append(speak_data)
+#         logger.info(questSpeakInfo)
+#         await store.save_ready_stage(StageType.SPEAKING, current_user.username, questSpeakInfo.model_dump_json())
+#         logger.info("****** generate speak stage")
+#     except Exception as e:
+#         logger.warning(e)
 
-# =========================================================
-# 쓰기 문제 생성 메서드 (유지)
-# =========================================================
-def _process_single_question(
-    user_int: UserInterview, interview: Interview
-) -> Dict[str, Any]:
+# # =========================================================
+# # 쓰기 문제 생성 메서드 (유지)
+# # =========================================================
+# def _process_single_question(
+#     user_int: UserInterview, interview: Interview
+# ) -> Dict[str, Any]:
     
-    openai_key = os.getenv("OPENAI_API_KEY")
+#     openai_key = os.getenv("OPENAI_API_KEY")
     
-    llm = ChatOpenAI(
-        model="gpt-4o", 
-        temperature=0, 
-        api_key=openai_key,
-        # 아래 model_kwargs를 사용하면 LLM이 JSON을 출력하도록 강제됩니다.
-        model_kwargs={"response_format": {"type": "json_object"}}
-    )
+#     llm = ChatOpenAI(
+#         model="gpt-4o", 
+#         temperature=0, 
+#         api_key=openai_key,
+#         # 아래 model_kwargs를 사용하면 LLM이 JSON을 출력하도록 강제됩니다.
+#         model_kwargs={"response_format": {"type": "json_object"}}
+#     )
     
-    """
-    개별 질문 처리: 발음과 번역을 생성 (동기 함수)
-    """
-    kor_q = interview.kor if interview.kor else ""
-    eng_q = interview.eng if interview.eng else ""
-    eng_ans = user_int.answer if user_int.answer else ""
+#     """
+#     개별 질문 처리: 발음과 번역을 생성 (동기 함수)
+#     """
+#     kor_q = interview.kor if interview.kor else ""
+#     eng_q = interview.eng if interview.eng else ""
+#     eng_ans = user_int.answer if user_int.answer else ""
     
-    prompt = f"""
-        You are a Korean language tutor.
+#     prompt = f"""
+#         You are a Korean language tutor.
 
-        Input Data:
-        - Korean Question: "{kor_q}"
-        - User's Answer (English): "{eng_ans}"      
-        Task:
-        1. Translate the "User's Answer" into natural, polite Korean (Honorifics).      
-        Output Format (JSON only, no markdown):
-        {{
-                    "answer_kor": "..."
-        }}
-        """
+#         Input Data:
+#         - Korean Question: "{kor_q}"
+#         - User's Answer (English): "{eng_ans}"      
+#         Task:
+#         1. Translate the "User's Answer" into natural, polite Korean (Honorifics).      
+#         Output Format (JSON only, no markdown):
+#         {{
+#                     "answer_kor": "..."
+#         }}
+#         """
 
-    response = llm.invoke(prompt)
-    content = response.content.strip()
+#     response = llm.invoke(prompt)
+#     content = response.content.strip()
     
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
-        content = content.split("```")[1].split("```")[0].strip()
+#     if "```json" in content:
+#         content = content.split("```json")[1].split("```")[0].strip()
+#     elif "```" in content:
+#         content = content.split("```")[1].split("```")[0].strip()
     
-    llm_result = json.loads(content)
+#     llm_result = json.loads(content)
     
-    result_data = {
-        "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": ""},
-        "answer": eng_ans,
-        "answer_kor": ""
-    }
+#     result_data = {
+#         "word_data": {"kor": kor_q, "eng": eng_q, "pronunciation": ""},
+#         "answer": eng_ans,
+#         "answer_kor": ""
+#     }
     
-    result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
+#     result_data["answer_kor"] = llm_result.get("answer_kor", eng_ans)
     
-    try:
-        result_data["word_data"]["pronunciation"] = korean_to_english_pronunciation(kor_q)
-    except NameError:
-        # korean_to_english_pronunciation 함수가 정의되지 않은 경우를 대비
-        result_data["word_data"]["pronunciation"] = f"Pronunciation for: {kor_q}" 
+#     try:
+#         result_data["word_data"]["pronunciation"] = korean_to_english_pronunciation(kor_q)
+#     except NameError:
+#         # korean_to_english_pronunciation 함수가 정의되지 않은 경우를 대비
+#         result_data["word_data"]["pronunciation"] = f"Pronunciation for: {kor_q}" 
         
-    return result_data
+#     return result_data
 
-def get_writing_questions(
-    session: Session, user_id: int
-) -> Dict[str, Any]:
-    """
-    쓰기 문제 생성 (동기 함수로 변환)
-    """
-    print(f"\n{'='*60}")
-    print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
-    try:
-        # 1. DB 쿼리: created_at 기준 내림차순
-        statement = (
-            select(UserInterview, Interview)
-            .join(Interview, UserInterview.interview_id == Interview.id)
-            .where(UserInterview.user_id == user_id)
-            .order_by(desc(UserInterview.created_at))
-            .limit(5)
-        )
+# def get_writing_questions(
+#     session: Session, user_id: int
+# ) -> Dict[str, Any]:
+#     """
+#     쓰기 문제 생성 (동기 함수로 변환)
+#     """
+#     print(f"\n{'='*60}")
+#     print(f"📝 쓰기 문제 생성 요청 (User ID: {user_id})")
+#     try:
+#         # 1. DB 쿼리: created_at 기준 내림차순
+#         statement = (
+#             select(UserInterview, Interview)
+#             .join(Interview, UserInterview.interview_id == Interview.id)
+#             .where(UserInterview.user_id == user_id)
+#             .order_by(desc(UserInterview.created_at))
+#             .limit(5)
+#         )
         
-        # 동기 세션에서 쿼리 실행 (session.exec().all()은 동기적으로 결과를 반환)
-        results = session.exec(statement).all()
+#         # 동기 세션에서 쿼리 실행 (session.exec().all()은 동기적으로 결과를 반환)
+#         results = session.exec(statement).all()
         
-        if not results:
-            print(f"✅ User ID {user_id}에 대한 결과 없음")
-            return {"user_id": user_id, "question": []}
+#         if not results:
+#             print(f"✅ User ID {user_id}에 대한 결과 없음")
+#             return {"user_id": user_id, "question": []}
             
-        # 2. 순차적 동기 처리
-        processed_questions = []
-        for user_int, interview in results:
-            processed_questions.append(
-                _process_single_question(user_int, interview)
-            )
+#         # 2. 순차적 동기 처리
+#         processed_questions = []
+#         for user_int, interview in results:
+#             processed_questions.append(
+#                 _process_single_question(user_int, interview)
+#             )
             
-        print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
-        return {"user_id": user_id, "question": processed_questions}
+#         print(f"✅ 총 {len(processed_questions)}개 문제 생성 완료")
+#         return {"user_id": user_id, "question": processed_questions}
         
-    except Exception as e:
-        print(f"❌ 서버 에러: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"user_id": user_id, "question": []}
+#     except Exception as e:
+#         print(f"❌ 서버 에러: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return {"user_id": user_id, "question": []}

@@ -50,6 +50,12 @@
                         <button class="filter-btn" onclick="filterLogs('warning')">⚠️ WARNING</button>
                         <button class="filter-btn" onclick="filterLogs('info')">ℹ️ INFO</button>
                         <button class="filter-btn" onclick="filterLogs('success')">✅ SUCCESS</button>
+                        <input type="text" class="filter-btn" id="filter-text" placeholder="텍스트 필터링" oninput="
+                            const filterText = this.value.toLowerCase();
+                            document.querySelectorAll('.log-line').forEach(line => {
+                                line.style.display = line.textContent.toLowerCase().includes(filterText) ? 'block' : 'none';
+                            });
+                        " placeholder="텍스트 필터링">
                     </div>
                 </div>
 

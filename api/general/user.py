@@ -35,7 +35,14 @@ def register(user: UserCreate, session: SessionDep):
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
-    return db_user
+    return UserResponse(
+        id = db_user.id,
+        username = db_user.username,
+        fullname = db_user.fullname,
+        is_active = db_user.is_active,
+        my_avatar = None,
+        my_color = None
+    )
 
 @router.post("/token", response_model=Token)
 def login(

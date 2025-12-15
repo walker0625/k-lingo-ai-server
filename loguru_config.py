@@ -37,7 +37,7 @@ async def fileloger(request: Request, call_next):
         response = await call_next(request)
         process_time = (time.time() - start_time) * 1000
         logger.info(
-            f"Response: status={response.status_code} completed_in={process_time:.2f}ms"
+            f"Response: {request.method} {request.url} status={response.status_code} completed_in={process_time:.2f}ms"
         )
         return response
     except Exception as e:
