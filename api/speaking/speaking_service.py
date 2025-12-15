@@ -98,7 +98,7 @@ class SpeakingService:
             
             assessment_data = self.judge_speaking(question, answer)
             
-            grammar_score = assessment_data.get('grammar_result', {}).get('score')
+            grammar_score = assessment_data.get('grammar_result', {}).get('grammar_score')
             context_score = assessment_data.get('context_result', {}).get('context_score')
             final_overall_score = assessment_data.get('score_result', {}).get('score')
             final_feedback = assessment_data.get('final_feedback')
