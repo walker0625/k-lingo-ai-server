@@ -10,11 +10,11 @@ from loguru import logger
 router = APIRouter()
 
 @router.post('/answers', response_model=ChatResponse, status_code=status.HTTP_200_OK)
-def ask_question(request: ChatRequest, session: SessionDep) -> ChatResponse:
+def ask_question(request: ChatRequest) -> ChatResponse:
     
     try:
         service = ChatService()  
-        answer = service.ask_question(request.system_prompt, request.user_prompt)
+        answer = service.ask_question(request.context, request.user_prompt)
         
         return ChatResponse(answer=answer)
     
