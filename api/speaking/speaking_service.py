@@ -203,13 +203,13 @@ class SpeakingService:
         
         # 1. LLM 설정 (JSON 모드 및 낮은 온도 설정)
         try:
-            # EXAONE 모델 사용 시 Ollama 호환성 및 JSON 모드 필수
+        
             llm = ChatOllama(
-                # qwen:14b-chat - 제미나이 추천
-                # llama3:8b-instruct-q4_K_M - 제미나이 추천
-                # qwen3-vl:8b - 응답이 없음 : 양자화 모델 변경 test           
-                # deepseek-r1:8b - 응답이 없음 : 양자화 모델 변경 test           
-                model="llama3:8b-instruct-q4_K_M",
+                # qwen2.5:7b - 빠른 속도와 성능
+                # EXAONE 1.2b - 간단한 응답만 활용 가능(Ollama 호환성 및 JSON 모드 필수)
+                # qwen:14b-chat - 너무 커서 속도가 아쉬움
+                # llama3:8b-instruct-q4_K_M - 속도가 나쁘지 않음
+                model="qwen2.5:7b",
                 format="json",
                 temperature=0.0,
                 num_gpu=-1 # -1 : gpu 사용하도록 설정 / 0 : cpu 사용하도록 설정
