@@ -12,7 +12,10 @@ from common.ko_util import korean_to_english_pronunciation
 from fastapi import UploadFile, HTTPException
 from sqlmodel import create_engine, Session, select
 
+from langchain_openai import ChatOpenAI
 from langchain_community.chat_models import ChatOllama
+from langchain_core.messages import HumanMessage
+
 from agent.judge.workflow import create_assessment_graph
 from agent.judge.states import AssessmentState
 
@@ -45,7 +48,24 @@ class SpeakingService:
     _asr_pipeline = None 
     
     def __init__(self):
+        # 1. STT 파이프라인
         self.pipe = self._get_pipeline()
+        
+        # ---------------------------------------------------------
+        # 2. vLLM 설정 값 로드 (연결은 _get_llm_client에서 수행)
+        # ---------------------------------------------------------
+        self.vllm_host = os.getenv("VLLM_HOST", "localhost")
+        self.vllm_port = os.getenv("VLLM_PORT", "8200") # 포트 8200 반영
+        self.vllm_base_url = f"http://{self.vllm_host}:{self.vllm_port}/v1"
+        self.vllm_model_name = "Qwen/Qwen2.5-7B-Instruct-AWQ" # 사용자가 지정한 모델명
+        self.vllm_timeout = 5.0 # 타임아웃 5초 설정
+
+        logger.info(f"🔧 vLLM Config Loaded: {self.vllm_base_url} | Model: {self.vllm_model_name}")
+
+        # ---------------------------------------------------------
+        # 3. Ollama 설정 값 로드 (Fallback)
+        # ---------------------------------------------------------
+        self.ollama_model_name = "qwen2:7b-instruct" # Fallback 모델명
     
     # 최초 요청 시 로드하는 Lazy Singleton 메서드
     @classmethod
@@ -199,24 +219,66 @@ class SpeakingService:
         # ensure_ascii=False는 한글이 깨지지 않도록 합니다.
         return json.dumps(final_json_data, ensure_ascii=False)
     
-    def judge_speaking(self, question: str, answer: str) -> SpeakingResponse:
-        
-        # 1. LLM 설정 (JSON 모드 및 낮은 온도 설정)
+    def _get_llm_client(self):
+        """
+        설정된 vLLM 정보로 연결을 시도하고, 실패 시 Ollama로 Fallback하는 로직
+        """
+        # =========================================================
+        # [Primary] vLLM 연결 시도
+        # =========================================================
         try:
-        
+            # 주의: LangGraph와 연동하기 위해 raw 'OpenAI' 클라이언트가 아닌
+            # 'ChatOpenAI' (LangChain Wrapper)를 사용합니다.
+            llm = ChatOpenAI(
+                model=self.vllm_model_name,
+                openai_api_base=self.vllm_base_url,
+                openai_api_key="EMPTY",  # vLLM은 보통 키가 필요 없음
+                temperature=0.0,
+                request_timeout=self.vllm_timeout, # 5.0초
+                max_tokens=1024,
+                model_kwargs={
+                    "response_format": {"type": "json_object"} # JSON 모드
+                }
+            )
+            
+            # 💡 Ping 테스트: 실제 통신이 되는지 가벼운 메시지로 확인
+            llm.invoke([HumanMessage(content="1")])
+            logger.info(f"🚀 [Primary] vLLM 서버 연결 성공 ({self.vllm_base_url})")
+            
+            return llm
+
+        except Exception as e:
+            logger.warning(f"⚠️ vLLM 연결 실패 (Timeout/Error). Fallback을 시작합니다. Error: {e}")
+
+        # =========================================================
+        # [Fallback] Ollama 연결 시도
+        # =========================================================
+        try:
+            logger.info(f"🔄 [Fallback] Ollama({self.ollama_model_name})로 전환 중...")
+            
             llm = ChatOllama(
-                # qwen2.5:7b - 빠른 속도와 성능
-                # EXAONE 1.2b - 간단한 응답만 활용 가능(Ollama 호환성 및 JSON 모드 필수)
-                # qwen:14b-chat - 너무 커서 속도가 아쉬움
-                # llama3:8b-instruct-q4_K_M - 속도가 나쁘지 않음
-                model="qwen2.5:7b",
+                model=self.ollama_model_name,
                 format="json",
                 temperature=0.0,
-                num_gpu=-1 # -1 : gpu 사용하도록 설정 / 0 : cpu 사용하도록 설정
+                num_gpu=-1 # GPU 사용
             )
+            
+            logger.info("🐢 [Fallback] Ollama 로컬 모델 연결 성공")
+            
+            return llm
+
         except Exception as e:
-            logger.error(f"❌ LLM 설정 실패: Ollama 서버가 실행 중인지, 모델이 설치되었는지 확인하세요. 에러: {e}")
-            return
+            logger.error(f"❌ [Critical] 모든 AI 엔진(vLLM, Ollama) 연결 실패: {e}")
+            return None
+    
+    def judge_speaking(self, question: str, answer: str) -> SpeakingResponse:
+        
+        # 1. LLM 클라이언트 획득
+        llm = self._get_llm_client()
+
+        if llm is None:
+            # 모든 LLM 연결 실패 시 503 Service Unavailable 반환
+            raise HTTPException(status_code=503, detail="AI 평가 서비스를 현재 사용할 수 없습니다.")
 
         # 2. 그래프 생성
         app = create_assessment_graph(llm)
