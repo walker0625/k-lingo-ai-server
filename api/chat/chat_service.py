@@ -8,8 +8,11 @@ from common.path import INPUT_DIR
 from typing import List, Dict
 
 from db.session import SessionDep
+
 from db.model.user import User
 from db.model.chat_history import ChatHistory
+
+from sqlmodel import select
 
 import openai
 from fastapi import UploadFile, HTTPException
@@ -102,11 +105,9 @@ class ChatService:
             result = self.pipe(audio_array)
             question = result['text']
         
-        # TODO : username을 키로 vector db에 저장 후 유사한 질문 조회
+        history = self.retrieve_similar_history(session, user.username, question)    
         
         self.save_chat(session, user, question)
-        
-        history = "How can I say someone '안녕하세요'"
         
         """
         vLLM에 먼저 요청을 보내고, 실패 시 Ollama로 재요청합니다.
@@ -137,16 +138,19 @@ class ChatService:
         시스템 프롬프트와 컨텍스트를 조합하여 메시지 리스트를 생성합니다.
         """
         system_instruction = (
-            "당신은 'K-Lingo'입니다. 당신은 유능하고 친절한 AI 사고 파트너이며, "
-            "한국어 튜터이자 게임 가이드 역할을 수행합니다.\n"
-            "사용자의 질문에 대해 공감하고 통찰력 있게 답변하세요.\n"
-            "답변 시 다음 규칙을 따르세요:\n"
-            "1. 제공된 [Game Context]를 바탕으로 게임 내 정보를 정확히 설명하세요.\n"
-            "2. 제공된 [Chat History]은 사용자의 이전 발화 내용인데 이를 반영하여 설명에 녹여내세요.\n"
-            "3. 한국어 학습에 도움이 되는 표현이 있다면 자연스럽게 설명에 녹여내세요.\n"
-            "4. 답변은 가독성 있게 서식(볼드체, 리스트 등)을 활용하세요.\n"
-            "5. 답변 끝에는 사용자가 할 수 있는 다음 행동(Next step)을 제안하세요."
-            "6. 모든 응답은 영어로 제공해주세요"
+            "당신은 'K-Lingo'의 핵심 지식 엔진입니다. 불필요한 인사말(Hello, Hi 등)이나 "
+            "의례적인 문장은 **절대 사용하지 마세요.** 질문을 받자마자 본론으로 시작하십시오.\n\n"
+            
+            "답변 시 다음의 **강력한 규칙**을 따르세요:\n"
+            "1. **인사말 금지**: 'Hello', ' assist you'와 같은 도입부를 생략하고 바로 피드백이나 정보를 제공하세요.\n"
+            "2. **[Chat History] 중심 답변**: 답변의 첫 문장은 반드시 이전 대화 내용(History)을 언급하며 시작하세요. "
+            "(예: 'Based on your previous question about...', 'As we discussed earlier regarding...') "
+            "이전 기록을 인용하여 현재 질문과 어떻게 연결되는지 명확히 밝히세요.\n"
+            "3. **전문적 피드백**: [Game Context]와 [Chat History]를 결합하여 사용자의 한국어 학습 상태에 대한 "
+            "날카롭고 구체적인 피드백을 제공하세요.\n"
+            "4. **가독성 극대화**: 본론만 전달하되, 볼드체와 리스트를 사용하여 정보를 구조화하세요.\n"
+            "5. **다음 행동 지시**: 답변 끝에는 'Next step:' 문구와 함께 즉시 실천 가능한 과제만 간단히 적으세요.\n"
+            "6. 모든 응답은 **영어(English)**로 작성하세요."
         )
 
         # 컨텍스트와 유저 질문을 결합 (RAG 패턴)
@@ -203,3 +207,39 @@ class ChatService:
         )
         session.add(chat)
         session.commit()
+        
+    def retrieve_similar_history(self, session: SessionDep, username: str, question: str) -> str:
+        """
+        사용자의 과거 대화 중 현재 질문과 가장 유사한 3개를 조회하여 문자열로 반환합니다.
+        """
+        try:
+            # 1. 현재 질문의 임베딩 벡터 생성
+            response = openai.embeddings.create(
+                input=question,
+                model="text-embedding-3-small"
+            )
+            query_vector = response.data[0].embedding
+
+            # 2. DB 조회 쿼리 작성
+            # pgvector의 cosine_distance를 사용하여 유사도 정렬
+            statement = (
+                select(ChatHistory)
+                .join(User, ChatHistory.user_id == User.id)
+                .where(User.username == username)
+                .order_by(ChatHistory.embedding.cosine_distance(query_vector))
+                .limit(3)
+            )
+            
+            results = session.exec(statement).all()
+
+            # 3. LLM 프롬프트에 넣기 좋은 형태(문자열)로 변환
+            history = ""
+            
+            for chat in results:
+                history += f"User: {chat.question}\n"
+            
+            return history
+
+        except Exception as e:
+            logger.error(f"Failed to retrieve chat history: {e}")
+            return ""

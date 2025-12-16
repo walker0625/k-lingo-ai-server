@@ -42,15 +42,15 @@ set_logger()
 # lifespan 정의
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("lifespan start")
+    logger.info("life span start")
     dbhandler = DBHandler(app)
     # milvus_service.connect()
-    logger.info("lifespan start")
+    logger.info("life span start")
     yield
-    logger.info("liefspan end")
+    logger.info("life span end")
     dbhandler.dispose()
     # milvus_service.disconnect()
-    logger.info("liefspan end")
+    logger.info("life span end")
 
 ## main app
 logger.info('')
