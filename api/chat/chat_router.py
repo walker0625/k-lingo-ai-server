@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, File, UploadFile, Depends
-from typing import Annotated
+from typing import Annotated, Optional
 
 from db.session import get_current_active_user
 from db.model.user import User
@@ -14,13 +14,14 @@ router = APIRouter()
 @router.post('/answers', response_model=ChatResponse, status_code=status.HTTP_200_OK)
 def ask_question(
     current_user: Annotated[User, Depends(get_current_active_user)],
-    context: str, 
-    audio: UploadFile = File(...)
+    context: Optional[str] = None, 
+    question: Optional[str] = None,
+    audio: Optional[UploadFile] = File(None)
     ) -> ChatResponse:
     
     try:
         service = ChatService()  
-        answer = service.ask_question(current_user.username, context, audio)
+        answer = service.ask_question(current_user.username, context, question, audio)
         
         return ChatResponse(answer=answer)
     

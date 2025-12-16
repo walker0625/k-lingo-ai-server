@@ -77,25 +77,27 @@ class ChatService:
 
         return cls._asr_pipeline
 
-    def ask_question(self, username: str, context: str, audio: UploadFile) -> str:
+    def ask_question(self, username: str, context: str, question: str, audio: UploadFile) -> str:
         
-        file_name = 'chat_' + str(uuid.uuid4()) + '.wav'
-        file_path = os.path.join(INPUT_DIR, file_name)
+        if question is None:
         
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(audio.file, buffer)
-        
-        # soundfile로 오디오 로드
-        audio_array, sampling_rate = sf.read(file_path)
-        
-        # 오디오 시간 계산
-        audio_duration = len(audio_array) / sampling_rate
-        
-        logger.info(f"오디오 처리 중: {audio_duration:.2f}초")
-        
-        # 💡 싱글톤 self.pipe 사용 (이미 __init__에서 할당됨)
-        result = self.pipe(audio_array)
-        question = result['text']
+            file_name = 'chat_' + str(uuid.uuid4()) + '.wav'
+            file_path = os.path.join(INPUT_DIR, file_name)
+
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(audio.file, buffer)
+
+            # soundfile로 오디오 로드
+            audio_array, sampling_rate = sf.read(file_path)
+
+            # 오디오 시간 계산
+            audio_duration = len(audio_array) / sampling_rate
+
+            logger.info(f"오디오 처리 중: {audio_duration:.2f}초")
+
+            # 💡 싱글톤 self.pipe 사용 (이미 __init__에서 할당됨)
+            result = self.pipe(audio_array)
+            question = result['text']
         
         # TODO : username을 키로 vector db에 저장 후 유사한 질문 조회
         history = "How can I say someone '안녕하세요'"
