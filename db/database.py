@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, text
 from loguru import logger
 
 ## logger
@@ -20,6 +20,14 @@ class DBHandler:
 
         app.state.engine = engine
         logger.info(f"initialize table : {DATABASE_INIT}")
+        
+        # postgres vector db 기능(pgvector) 확장 활성화(테이블 생성 전에 실행해야함)
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                logger.info("✅ PostgreSQL Extension 'vector' activated.")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to create extension 'vector': {e}")
 
         # Startup: DB 초기화
         if os.environ["DATABASE_INIT"] == "0":

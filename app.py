@@ -29,7 +29,7 @@ from api.general.scenario import router as scenario_router
 from api.general.interview import router as interview_router
 from api.general.logviewer import router as log_router
 from api.general.upload import router as upload_router
-from api.general.retrieve import router as retrieve_router
+# from api.general.retrieve import router as retrieve_router - milvus를 pgvector로 변경
 
 from api.chat.chat_router import router as chat_router
 from api.listening.listening_router import router as listening_router

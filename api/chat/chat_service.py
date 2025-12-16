@@ -5,11 +5,14 @@ import shutil
 import soundfile as sf
 
 from common.path import INPUT_DIR
-
 from typing import List, Dict
 
-from fastapi import UploadFile, HTTPException
+from db.session import SessionDep
+from db.model.user import User
+from db.model.chat_history import ChatHistory
 
+import openai
+from fastapi import UploadFile, HTTPException
 from openai import OpenAI, APIConnectionError, APITimeoutError
 import ollama
 
@@ -77,7 +80,7 @@ class ChatService:
 
         return cls._asr_pipeline
 
-    def ask_question(self, username: str, context: str, question: str, audio: UploadFile) -> str:
+    def ask_question(self, session: SessionDep, user: User, context: str, question: str, audio: UploadFile) -> str:
         
         if question is None:
         
@@ -100,6 +103,9 @@ class ChatService:
             question = result['text']
         
         # TODO : username을 키로 vector db에 저장 후 유사한 질문 조회
+        
+        self.save_chat(session, user, question)
+        
         history = "How can I say someone '안녕하세요'"
         
         """
@@ -181,3 +187,19 @@ class ChatService:
         )
         
         return response['message']['content']
+    
+    def save_chat(self, session, user, question):
+        
+        response = openai.embeddings.create(
+            input=question,
+            model="text-embedding-3-small"
+        )
+        vector_data = response.data[0].embedding 
+
+        chat = ChatHistory(
+            user_id=user.id,
+            question=question,
+            embedding=vector_data
+        )
+        session.add(chat)
+        session.commit()
