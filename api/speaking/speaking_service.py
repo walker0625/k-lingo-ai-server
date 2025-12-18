@@ -37,13 +37,6 @@ from loguru import logger
 DATABASE_URL="postgresql://klingo:klingo@100.100.53.32:5432/k-lingo"
 engine = create_engine(DATABASE_URL)
 
-from sqlmodel import SQLModel
-
-try:
-    SQLModel.metadata.create_all(engine)
-except Exception as e:
-    logger.warning(f"SQLModel create_all warning (expected if tables exist): {e}")
-
 class SpeakingService:
     _asr_pipeline = None 
     

@@ -29,7 +29,7 @@ from api.general.scenario import router as scenario_router
 from api.general.interview import router as interview_router
 from api.general.logviewer import router as log_router
 from api.general.upload import router as upload_router
-from api.general.retrieve import router as retrieve_router
+# from api.general.retrieve import router as retrieve_router - milvus를 pgvector로 변경
 
 from api.chat.chat_router import router as chat_router
 from api.listening.listening_router import router as listening_router
@@ -42,15 +42,15 @@ set_logger()
 # lifespan 정의
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("lifespan start")
+    logger.info("life span start")
     dbhandler = DBHandler(app)
     # milvus_service.connect()
-    logger.info("lifespan start")
+    logger.info("life span start")
     yield
-    logger.info("liefspan end")
+    logger.info("life span end")
     dbhandler.dispose()
     # milvus_service.disconnect()
-    logger.info("liefspan end")
+    logger.info("life span end")
 
 ## main app
 logger.info('')
