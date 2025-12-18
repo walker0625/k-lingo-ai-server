@@ -1,4 +1,5 @@
 import json, os, dotenv, redis
+dotenv.load_dotenv()
 from typing import Any
 from pydantic import BaseModel
 from api.listening.listening_service import ListeningService
@@ -12,7 +13,6 @@ class SpeakScenarioSource(BaseModel):
 
 ## redis store process
 def store_speak_scenario(username: str, json_obj:Any):
-    dotenv.load_dotenv()
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
     REDIS_DB = int(os.getenv("REDIS_DB", "0"))
