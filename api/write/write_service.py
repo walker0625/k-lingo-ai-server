@@ -92,7 +92,7 @@ class WriteService:
         # 1. OpenAI 클라이언트 설정
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            print("⚠️ 경고: OPENAI_API_KEY가 설정되지 않았습니다.")
+            print("경고: OPENAI_API_KEY가 설정되지 않았습니다.")
 
         self.client = AsyncOpenAI(api_key=self.api_key)
 
@@ -103,9 +103,9 @@ class WriteService:
 
         try:
             self.redis = redis.from_url(self.redis_url, decode_responses=True)
-            print(f"✅ Redis Connected: {self.redis_url}")
+            print(f"Redis Connected: {self.redis_url}")
         except Exception as e:
-            print(f"❌ Redis Connection Failed: {e}")
+            print(f"Redis Connection Failed: {e}")
 
     async def get_writing_questions(
         self, session: Session, user_id: int
@@ -131,8 +131,8 @@ class WriteService:
                 ocr_text = await self._ocr_with_gpt(base64_image)
                 print(f"DEBUG: OpenAI OCR Result: {ocr_text} (Target: {target_text})")
 
-                # 2. [수정됨] 자소 분리 기반 점수 계산
-                score = self._calculate_score_jamo(target_text, ocr_text)
+                # 2. 자소 분리 기반 점수 계산 (짧은 단어용 조정)
+                score = self._calculate_score_jamo_strict(target_text, ocr_text)
 
                 # 3. AI 피드백 생성
                 ai_feedback = await self._generate_feedback_with_gpt(
@@ -147,9 +147,9 @@ class WriteService:
                 result = {
                     "display": {
                         "is_pass": is_pass,
-                        "message": ai_feedback.get("message", "참 잘했어요!"),
+                        "message": ai_feedback.get("message", "Great job!"),
                         "correction": ai_feedback.get(
-                            "correction", "조금 더 정확하게 써보세요."
+                            "correction", "Try writing more accurately."
                         ),
                     },
                     "record": {
@@ -162,12 +162,12 @@ class WriteService:
                 results.append(result)
 
             except Exception as e:
-                print(f"❌ 평가 중 에러: {e}")
+                print(f"평가 중 에러: {e}")
                 results.append(
                     {
                         "display": {
                             "is_pass": False,
-                            "message": "오류가 발생했습니다.",
+                            "message": "An error occurred.",
                             "correction": "",
                         },
                         "record": {
@@ -222,7 +222,7 @@ class WriteService:
 
     def _decompose_hangul(self, text: str) -> str:
         """
-        [신규] 한글 문자열을 초성/중성/종성으로 분해하여 반환합니다.
+        한글 문자열을 초성/중성/종성으로 분해하여 반환합니다.
         예: '감사' -> 'ㄱㅏㅁㅅㅏ'
         """
         result = ""
@@ -241,10 +241,10 @@ class WriteService:
                 result += char
         return result
 
-    def _calculate_score_jamo(self, target_text: str, ocr_text: str) -> int:
+    def _calculate_score_jamo_strict(self, target_text: str, ocr_text: str) -> int:
         """
-        [수정됨] 자소 단위로 분해하여 유사도를 계산합니다.
-        훨씬 더 관대한 채점이 가능합니다.
+        [짧은 단어용 엄격한 채점]
+        단어가 짧기 때문에 한 글자 오류도 큰 감점으로 처리
         """
         # 공백 제거
         target_clean = target_text.replace(" ", "").replace("\n", "")
@@ -253,49 +253,71 @@ class WriteService:
         if not ocr_clean:
             return 0
 
+        # 완전 일치 시 100점
+        if target_clean == ocr_clean:
+            return 100
+
         # 자소 분해 (예: '글' -> 'ㄱㅡㄹ')
         target_jamo = self._decompose_hangul(target_clean)
         ocr_jamo = self._decompose_hangul(ocr_clean)
 
         # 자소 단위 비교
         matcher = difflib.SequenceMatcher(None, target_jamo, ocr_jamo)
-        score = int(matcher.ratio() * 100)
+        similarity = matcher.ratio()
+
+        # 짧은 단어는 엄격하게 채점 (90% 미만 유사도는 대폭 감점)
+        if similarity >= 0.95:
+            score = 95
+        elif similarity >= 0.90:
+            score = 85
+        elif similarity >= 0.80:
+            score = 70
+        elif similarity >= 0.70:
+            score = 55
+        elif similarity >= 0.60:
+            score = 40
+        else:
+            score = int(similarity * 50)  # 60% 미만은 더 낮게
 
         print(
-            f"DEBUG: Score Calculation -> Target: {target_jamo}, Input: {ocr_jamo}, Score: {score}"
+            f"DEBUG: Strict Score -> Target: '{target_clean}' ({target_jamo}), "
+            f"Input: '{ocr_clean}' ({ocr_jamo}), Similarity: {similarity:.2%}, Score: {score}"
         )
         return score
 
     async def _generate_feedback_with_gpt(
         self, base64_image: str, target: str, ocr_input: str, score: int
     ) -> Dict[str, str]:
-        """GPT-4o를 사용하여 피드백 생성"""
+        """GPT-4o를 사용하여 피드백 생성 (영어 출력, 짧은 단어용)"""
         system_prompt = """
-        당신은 친절하지만 정확한 한국어 필기 선생님입니다.
-        학생의 손글씨 이미지를 보고, 목표 텍스트와 비교하여 구체적인 피드백을 JSON 형식으로 제공하세요.
+        You are a kind but precise Korean handwriting teacher.
+        Students are practicing SHORT Korean words (5-7 characters max).
+        Look at the handwriting image and provide specific feedback in JSON format.
         
-        [피드백 작성 원칙]
-        1. 점수가 90점 이상: 칭찬 중심의 긍정적 피드백
-        2. 점수가 70~89점: 칭찬하되 개선점 1-2가지 언급
-        3. 점수가 50~69점: 틀린 글자와 획순/모양을 구체적으로 지적
-        4. 점수가 50점 미만: 전체적인 연습 방향 제시 + 가장 틀린 글자 2-3개 집중 언급
+        [Feedback Principles for Short Words]
+        1. Score 95-100: Perfect! Excellent handwriting
+        2. Score 85-94: Very good, minor stroke improvements needed
+        3. Score 70-84: Good attempt, point out 1-2 specific character errors
+        4. Score 55-69: Several errors, identify which characters need practice
+        5. Score below 55: Most characters incorrect, suggest fundamental practice
         
-        [JSON 형식]
+        [JSON Format]
         {
-            "message": "학생에게 전할 메시지 (1-2문장, 격려 포함)",
-            "correction": "구체적인 교정 방법 (어떤 글자의 어떤 부분을 어떻게 고쳐야 하는지)"
+            "message": "Encouraging message (1 sentence)",
+            "correction": "Specific correction for wrong characters"
         }
         
-        반드시 이미지를 보고 실제로 틀린 부분을 지적하세요. 일반적인 조언은 금지입니다.
+        **CRITICAL: All feedback must be in English.**
+        Since words are short, even one wrong character is significant.
         """
 
         user_content = f"""
-        [채점 결과]
-        - 목표 텍스트: {target}
-        - 인식된 텍스트: {ocr_input}
-        - 점수: {score}점
+        [Grading Result]
+        - Target Word: {target} (SHORT word, 5-7 chars)
+        - Student Wrote: {ocr_input}
+        - Score: {score} points
         
-        이미지를 보고, 학생이 실제로 어떤 글자를 잘못 썼는지 구체적으로 분석해주세요.
+        Analyze which specific characters are wrong and provide precise feedback.
         """
 
         try:
@@ -321,57 +343,63 @@ class WriteService:
             )
 
             result = json.loads(response.choices[0].message.content)
-            print(f"✅ GPT 피드백 생성 성공: {result}")
+            print(f"GPT Feedback Generated: {result}")
             return result
 
         except Exception as e:
-            # GPT 호출 실패 시 점수 기반 Fallback 피드백
-            print(f"❌ GPT 피드백 생성 실패, Fallback 사용: {e}")
+            print(f"GPT Feedback Failed, Using Fallback: {e}")
             return self._generate_fallback_feedback(target, ocr_input, score)
 
     def _generate_fallback_feedback(
         self, target: str, ocr_input: str, score: int
     ) -> Dict[str, str]:
         """
-        [신규] GPT 호출 실패 시 점수 기반으로 피드백 생성
+        [영어 버전 - 짧은 단어용]
         """
         target_clean = target.replace(" ", "")
         ocr_clean = ocr_input.replace(" ", "")
 
-        # 글자 단위로 비교하여 틀린 글자 찾기
+        # 글자 단위로 비교
         wrong_chars = []
         for i, (t_char, o_char) in enumerate(zip(target_clean, ocr_clean)):
             if t_char != o_char:
                 wrong_chars.append(f"'{t_char}'")
 
         # 점수별 피드백
-        if score >= 90:
+        if score >= 95:
             return {
-                "message": "정말 잘 쓰셨어요! 거의 완벽합니다.",
-                "correction": "조금만 더 연습하면 100점도 가능해요!",
+                "message": "Perfect! Excellent handwriting!",
+                "correction": "Keep practicing to maintain this level.",
             }
+        elif score >= 85:
+            correction = (
+                f"Almost perfect! Check {wrong_chars[0]} stroke order."
+                if wrong_chars
+                else "Minor improvements in stroke consistency."
+            )
+            return {"message": "Very good work!", "correction": correction}
         elif score >= 70:
             correction = (
-                f"{', '.join(wrong_chars[:2])} 글자를 좀 더 또박또박 써보세요."
+                f"Practice {', '.join(wrong_chars[:2])} more carefully."
                 if wrong_chars
-                else "글자 모양을 조금 더 다듬어보세요."
+                else f"Focus on writing '{target_clean}' with clearer strokes."
             )
-            return {"message": "잘 하고 있어요!", "correction": correction}
-        elif score >= 50:
+            return {"message": "Good attempt!", "correction": correction}
+        elif score >= 55:
             correction = (
-                f"'{target_clean}'에서 {', '.join(wrong_chars[:3])} 글자의 획순과 모양을 다시 확인해보세요."
+                f"In '{target_clean}', characters {', '.join(wrong_chars[:3])} need correction."
                 if wrong_chars
-                else f"'{target_clean}'의 각 글자를 천천히 따라 써보세요."
+                else f"Review how to write '{target_clean}' step by step."
             )
-            return {"message": "조금 더 노력이 필요해요.", "correction": correction}
+            return {"message": "More practice needed.", "correction": correction}
         else:
             return {
-                "message": f"'{target_clean}'를 다시 한 번 천천히 써봅시다.",
-                "correction": f"목표는 '{target_clean}'인데, 인식된 글자가 많이 다릅니다. 각 글자의 모양을 정확히 보고 따라 써보세요. 특히 {wrong_chars[0] if wrong_chars else '첫 글자'}부터 다시 연습해보세요.",
+                "message": f"Let's practice '{target_clean}' again slowly.",
+                "correction": f"Target is '{target_clean}' but recognition shows '{ocr_clean}'. Practice each character separately: {', '.join(list(target_clean))}.",
             }
 
     async def _update_redis_history(self, username: str, score: int, feedback: dict):
-        """Redis 업데이트 로직 분리"""
+        """Redis 업데이트"""
         try:
             redis_key = f"KLINGO-CURRENT:{username}"
             raw_data = await self.redis.get(redis_key)
@@ -382,7 +410,7 @@ class WriteService:
             if "scores" not in data["result"]:
                 data["result"]["scores"] = []
 
-            # 마이그레이션 로직 포함
+            # 마이그레이션
             if "scores" in data and isinstance(data["scores"], list):
                 data["result"]["scores"].extend(data["scores"])
                 del data["scores"]
