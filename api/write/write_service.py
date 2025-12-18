@@ -271,16 +271,32 @@ class WriteService:
     ) -> Dict[str, str]:
         """GPT-4o를 사용하여 피드백 생성"""
         system_prompt = """
-        당신은 친절한 한국어 선생님입니다.
-        학생의 필기 이미지와 인식된 텍스트, 점수를 보고 피드백을 JSON으로 주세요.
+        당신은 친절하지만 정확한 한국어 필기 선생님입니다.
+        학생의 손글씨 이미지를 보고, 목표 텍스트와 비교하여 구체적인 피드백을 JSON 형식으로 제공하세요.
         
-        [가이드]
-        1. 점수가 90점 이상이면 칭찬 위주.
-        2. 점수가 낮으면 어떤 글자가 틀렸는지, 획을 어떻게 그어야 하는지 구체적으로 조언.
-        3. 반환 형식은 반드시 JSON이어야 함.
+        [피드백 작성 원칙]
+        1. 점수가 90점 이상: 칭찬 중심의 긍정적 피드백
+        2. 점수가 70~89점: 칭찬하되 개선점 1-2가지 언급
+        3. 점수가 50~69점: 틀린 글자와 획순/모양을 구체적으로 지적
+        4. 점수가 50점 미만: 전체적인 연습 방향 제시 + 가장 틀린 글자 2-3개 집중 언급
+        
+        [JSON 형식]
+        {
+            "message": "학생에게 전할 메시지 (1-2문장, 격려 포함)",
+            "correction": "구체적인 교정 방법 (어떤 글자의 어떤 부분을 어떻게 고쳐야 하는지)"
+        }
+        
+        반드시 이미지를 보고 실제로 틀린 부분을 지적하세요. 일반적인 조언은 금지입니다.
         """
 
-        user_content = f"목표: {target}, 인식됨: {ocr_input}, 점수: {score}"
+        user_content = f"""
+        [채점 결과]
+        - 목표 텍스트: {target}
+        - 인식된 텍스트: {ocr_input}
+        - 점수: {score}점
+        
+        이미지를 보고, 학생이 실제로 어떤 글자를 잘못 썼는지 구체적으로 분석해주세요.
+        """
 
         try:
             response = await self.client.chat.completions.create(
@@ -303,11 +319,55 @@ class WriteService:
                 response_format={"type": "json_object"},
                 temperature=0.7,
             )
-            return json.loads(response.choices[0].message.content)
-        except Exception:
+
+            result = json.loads(response.choices[0].message.content)
+            print(f"✅ GPT 피드백 생성 성공: {result}")
+            return result
+
+        except Exception as e:
+            # GPT 호출 실패 시 점수 기반 Fallback 피드백
+            print(f"❌ GPT 피드백 생성 실패, Fallback 사용: {e}")
+            return self._generate_fallback_feedback(target, ocr_input, score)
+
+    def _generate_fallback_feedback(
+        self, target: str, ocr_input: str, score: int
+    ) -> Dict[str, str]:
+        """
+        [신규] GPT 호출 실패 시 점수 기반으로 피드백 생성
+        """
+        target_clean = target.replace(" ", "")
+        ocr_clean = ocr_input.replace(" ", "")
+
+        # 글자 단위로 비교하여 틀린 글자 찾기
+        wrong_chars = []
+        for i, (t_char, o_char) in enumerate(zip(target_clean, ocr_clean)):
+            if t_char != o_char:
+                wrong_chars.append(f"'{t_char}'")
+
+        # 점수별 피드백
+        if score >= 90:
             return {
-                "message": "참 잘했어요!" if score > 70 else "조금 더 연습해 볼까요?",
-                "correction": "글자 모양을 목표 단어와 똑같이 써보세요.",
+                "message": "정말 잘 쓰셨어요! 거의 완벽합니다.",
+                "correction": "조금만 더 연습하면 100점도 가능해요!",
+            }
+        elif score >= 70:
+            correction = (
+                f"{', '.join(wrong_chars[:2])} 글자를 좀 더 또박또박 써보세요."
+                if wrong_chars
+                else "글자 모양을 조금 더 다듬어보세요."
+            )
+            return {"message": "잘 하고 있어요!", "correction": correction}
+        elif score >= 50:
+            correction = (
+                f"'{target_clean}'에서 {', '.join(wrong_chars[:3])} 글자의 획순과 모양을 다시 확인해보세요."
+                if wrong_chars
+                else f"'{target_clean}'의 각 글자를 천천히 따라 써보세요."
+            )
+            return {"message": "조금 더 노력이 필요해요.", "correction": correction}
+        else:
+            return {
+                "message": f"'{target_clean}'를 다시 한 번 천천히 써봅시다.",
+                "correction": f"목표는 '{target_clean}'인데, 인식된 글자가 많이 다릅니다. 각 글자의 모양을 정확히 보고 따라 써보세요. 특히 {wrong_chars[0] if wrong_chars else '첫 글자'}부터 다시 연습해보세요.",
             }
 
     async def _update_redis_history(self, username: str, score: int, feedback: dict):
