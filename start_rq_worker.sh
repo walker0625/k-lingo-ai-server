@@ -28,6 +28,6 @@ fi
 # RQ 워커 실행
 rq worker --url "$REDIS_URL" $QUEUES
 
-# nohub rq worker --url "$REDIS_URL" --name "klingo_worker" $QUEUES > "$LOG_DIR/rq_worker.log" 2>&1 &
+# nohup rq worker --url "$REDIS_URL" --name "klingo_worker" $QUEUES > "$LOG_DIR/rq_worker.log" 2>&1 &
 # echo "RQ Worker started. Logs are being written to $LOG_DIR/rq_worker.log"
 # =================================================================

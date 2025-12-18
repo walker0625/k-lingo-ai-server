@@ -82,7 +82,7 @@ def get_my_interviews(
 def sampling_interview_list(
     all_interview_list: list[InterviewResponse],
     user_interview_list: list[InterviewResponse],
-    max_number=5,
+    max_number=5
 ):
     ### 전체 인터뷰 리스트에서 최대 5개가져오기
     ### 유저의 인터뷰 히스토리 제외하고 레벨 1번부터 시작해서 순서대로 최대 5개까지 가져오기
@@ -195,7 +195,7 @@ async def add_user_answer(
     queue_store = QueueStore()
     logger.info("****** Redis RQ 쓰기 문제 생성 작업 추가 ******")
     write_source: list[WriteScenarioSource] = []
-    for _answer in results:
+    for _answer in random.sample(results,3):
         write_source.append(
             WriteScenarioSource(
                 kor = _answer.interview_kor,
@@ -211,7 +211,7 @@ async def add_user_answer(
     ## redis rq 처리
     logger.info("****** Redis RQ 말하기 문제 생성 작업 추가 ******")
     speak_source: list[SpeakScenarioSource] = []
-    for _answer in results:
+    for _answer in random.sample(results,3):
         speak_source.append(
             SpeakScenarioSource(
                 kor = _answer.interview_kor,

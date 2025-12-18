@@ -5,10 +5,12 @@ build/
 dist/
 wheels/
 *.egg-info
+*.sh
 # Virtual environments
-.venv
+.venv/
 .env
 uv.lock
+docker-compose.yml
 ## log folder
 logs/
 ## static folder
@@ -19,10 +21,7 @@ static/output/
 volumes/
 
 # 기존 내용 아래에 추가
-docker-compose.yml
 ## masterdata
 masterdata/
 ## test files
 temp/
-## test main
-apptest.py

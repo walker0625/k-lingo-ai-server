@@ -63,13 +63,27 @@ quest_template = {
     }
 }
 
+# def quest_items(quests:list[BaseModel],_type:str,level:QuestLevel):
+#     items = []
+#     for item_zip in [zip(q.quest_codes,q.quest_words)
+#                  for q in quests if q.quest_type == _type and q.quest_level == level]:
+#         for item in item_zip:
+#             items.append(TargetItem(code=item[0],name=item[1]))
+#     return items
 def quest_items(quests:list[BaseModel],_type:str,level:QuestLevel):
     items = []
+    _levels = [QuestLevel.EASY]
+    if level == QuestLevel.NORMAL:
+        _levels.append(level)
+    elif level == QuestLevel.HARD:
+        _levels.append(QuestLevel.NORMAL)
+        _levels.append(QuestLevel.HARD)
     for item_zip in [zip(q.quest_codes,q.quest_words)
-                 for q in quests if q.quest_type == _type and q.quest_level == level]:
+                 for q in quests if q.quest_type == _type and q.quest_level in _levels]:
         for item in item_zip:
             items.append(TargetItem(code=item[0],name=item[1]))
     return items
+
 def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LISTENING],
         quests:list[BaseModel],level:QuestLevel,quest_count:int = 10):
     """
