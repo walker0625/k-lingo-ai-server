@@ -7,7 +7,7 @@
 # 1. 환경 설정 (필요에 따라 수정)
 
 REDIS_URL="redis://100.100.53.32:6379"
-QUEUES="KLINGO:RQ"
+QUEUES="KLINGO:RQ_TEST"
 VENV_PATH=".venv/bin/activate"
 LOG_DIR="./logs"
 # =================================================================
@@ -26,8 +26,8 @@ if [ -n "$VENV_PATH" ]; then
 fi
 
 # RQ 워커 실행
-# rq worker --url "$REDIS_URL" $QUEUES
+rq worker --url "$REDIS_URL" $QUEUES
 
-nohup rq worker --url "$REDIS_URL" --name "klingo_worker" $QUEUES > "$LOG_DIR/rq_worker.log" 2>&1 &
-echo "RQ Worker started. Logs are being written to $LOG_DIR/rq_worker.log"
+# nohup rq worker --url "$REDIS_URL" --name "klingo_worker" $QUEUES > "$LOG_DIR/rq_worker.log" 2>&1 &
+# echo "RQ Worker started. Logs are being written to $LOG_DIR/rq_worker.log"
 # =================================================================

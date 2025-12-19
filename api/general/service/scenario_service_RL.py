@@ -63,26 +63,46 @@ quest_template = {
     }
 }
 
-# def quest_items(quests:list[BaseModel],_type:str,level:QuestLevel):
-#     items = []
-#     for item_zip in [zip(q.quest_codes,q.quest_words)
-#                  for q in quests if q.quest_type == _type and q.quest_level == level]:
-#         for item in item_zip:
-#             items.append(TargetItem(code=item[0],name=item[1]))
-#     return items
 def quest_items(quests:list[BaseModel],_type:str,level:QuestLevel):
+    ## 해당 레벨의 퀘스트 갯수만큼 샘플링    
     items = []
-    _levels = [QuestLevel.EASY]
-    if level == QuestLevel.NORMAL:
-        _levels.append(level)
-    elif level == QuestLevel.HARD:
-        _levels.append(QuestLevel.NORMAL)
-        _levels.append(QuestLevel.HARD)
     for item_zip in [zip(q.quest_codes,q.quest_words)
-                 for q in quests if q.quest_type == _type and q.quest_level in _levels]:
+                 for q in quests if q.quest_type == _type and q.quest_level == level]:
         for item in item_zip:
             items.append(TargetItem(code=item[0],name=item[1]))
     return items
+
+def quest_sampling(stage_type:Literal[StageType.READING, StageType.LISTENING],
+        quests:list[BaseModel],level:QuestLevel,count:int = 10):
+    """
+        레벨에 따라 샘플링 갯수 조정
+        Level : EASY - 100%, NORMAL - EASY 50%, NORMAL 50%, HARD - EASY 20%, NORMAL 30%, HARD 50%
+    """
+    sampling_count = {
+        QuestLevel.EASY:0,
+        QuestLevel.NORMAL:0,
+        QuestLevel.HARD:0
+    }
+    if level == QuestLevel.EASY:
+        sampling_count[QuestLevel.EASY] = count
+    elif level == QuestLevel.NORMAL:
+        sampling_count[QuestLevel.NORMAL] = int(count * 0.5)
+        sampling_count[QuestLevel.EASY] = count - sampling_count[QuestLevel.NORMAL]
+    else:
+        sampling_count[QuestLevel.HARD] = int(count * 0.5)
+        sampling_count[QuestLevel.NORMAL] = int((count - sampling_count[QuestLevel.HARD]) * 0.6)
+        sampling_count[QuestLevel.EASY] = count - sampling_count[QuestLevel.HARD] - sampling_count[QuestLevel.NORMAL]
+    # print(sampling_count)
+    word1_type = 'symbol' if stage_type == StageType.READING else 'region'
+    word2_type = 'color' if stage_type == StageType.READING else 'food'
+    sampling_list = []
+    for _sampling_level in sampling_count:
+        if sampling_count[_sampling_level] <= 0:
+            continue
+        word1 = quest_items(quests,word1_type,_sampling_level)
+        word2 = quest_items(quests,word2_type,_sampling_level)
+        sampling_list.extend(random.sample([(w1, w2) for w1 in word1 for w2 in word2],sampling_count[_sampling_level]))
+    return random.sample(sampling_list,count)
 
 def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LISTENING],
         quests:list[BaseModel],level:QuestLevel,quest_count:int = 10):
@@ -92,11 +112,12 @@ def gen_read_or_listen_quest(stage_type: Literal[StageType.READING, StageType.LI
         quest_count : 필요 갯수
         읽기 시나리오 생성
     """
-    word1_type = 'symbol' if stage_type == StageType.READING else 'region'
-    word2_type = 'color' if stage_type == StageType.READING else 'food'
-    word1 = quest_items(quests,word1_type,level)
-    word2 = quest_items(quests,word2_type,level)
-    quest_data = random.sample([(w1, w2) for w1 in word1 for w2 in word2],quest_count)
+    # word1_type = 'symbol' if stage_type == StageType.READING else 'region'
+    # word2_type = 'color' if stage_type == StageType.READING else 'food'
+    # word1 = quest_items(quests,word1_type,level)
+    # word2 = quest_items(quests,word2_type,level)
+    # quest_data = random.sample([(w1, w2) for w1 in word1 for w2 in word2],quest_count)
+    quest_data = quest_sampling(stage_type,quests,level)
     correct_index = random.randint(0,quest_count-1)
     target_data = [TargetData(word1=q_data[0],word2=q_data[1]) for q_data in quest_data]
     word_data1 = quest_template[stage_type]['word_data1'].format(quest_data[correct_index][0].name)
