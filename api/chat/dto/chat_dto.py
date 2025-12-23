@@ -5,4 +5,5 @@ class ChatRequest(BaseModel):
     user_prompt: str
 
 class ChatResponse(BaseModel):
+    question: str
     answer: str

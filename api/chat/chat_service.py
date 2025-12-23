@@ -12,6 +12,8 @@ from db.session import SessionDep
 from db.model.user import User
 from db.model.chat_history import ChatHistory
 
+from api.chat.dto.chat_dto import ChatResponse
+
 from sqlmodel import select
 
 import openai
@@ -117,7 +119,7 @@ class ChatService:
 
         try:
             # 2. vLLM 시도
-            return self._request_vllm(messages)
+            return ChatResponse(question=question, answer=self._request_vllm(messages))
 
         except (APIConnectionError, APITimeoutError, Exception) as e:
             # 3. 실패 시 에러 로깅 후 Ollama로 전환
@@ -126,7 +128,7 @@ class ChatService:
             
             try:
                 # 4. Ollama 시도
-                return self._request_ollama(messages)
+                return ChatResponse(question=question, answer=self._request_ollama(messages))
             except Exception as ollama_e:
                 # 둘 다 실패한 경우
                 logger.error(f"Both vLLM and Ollama failed. Final error: {ollama_e}")

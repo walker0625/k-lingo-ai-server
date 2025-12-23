@@ -22,9 +22,7 @@ def ask_question(
     
     try:
         service = ChatService()  
-        answer = service.ask_question(session, user, context, question, audio)
-        
-        return ChatResponse(answer=answer)
+        return service.ask_question(session, user, context, question, audio)
     
     except Exception as e:
         logger.error(f"질문 처리 실패: {e}")
