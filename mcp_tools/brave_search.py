@@ -16,14 +16,17 @@ class BraveSearchTool(BaseMCPTool):
         return {
             "type": "function",
             "function": {
-                "name": "web_search",  # [중요] LLM이 기억할 도구 이름
-                "description": "최신 뉴스, 날씨, 사실 확인 등 실시간 웹 정보가 필요할 때 사용합니다.",
+                "name": "web_search",
+                "description": (
+                    "A search engine. Useful for when you need to answer questions about current events. "
+                    "Use this whenever the user asks for 'weather', 'news', 'dates', or 'facts' that might have changed."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "검색 엔진에 입력할 최적화된 검색어 (예: '서울 날씨', '2024년 AI 트렌드')"
+                            "description": "The search query to look up. (e.g., 'weather in Jamsil today')"
                         }
                     },
                     "required": ["query"],

@@ -18,11 +18,12 @@ def ask_question(
     context: Optional[str] = None, 
     question: Optional[str] = None,
     audio: Optional[UploadFile] = File(None),
+    level: int = 1
     ) -> ChatResponse:
     
     try:
         service = ChatService()  
-        return service.ask_question(session, user, context, question, audio)
+        return service.ask_question(session, user, context, question, audio, level)
     
     except Exception as e:
         logger.error(f"질문 처리 실패: {e}")

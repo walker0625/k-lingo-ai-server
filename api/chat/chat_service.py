@@ -3,7 +3,7 @@ import logging
 import uuid
 import shutil
 import soundfile as sf
-import json  # [NEW] 도구 인자 파싱을 위해 필요
+import json 
 
 from common.path import INPUT_DIR
 from typing import List, Dict
@@ -59,7 +59,6 @@ class ChatService:
         
         # ------------------------------------------------------------------
         # 4. MCP 도구 등록 (Dependency Injection)
-        # [설명] 여기서 도구를 등록하면 ChatService는 내부 구현을 몰라도 됩니다.
         # ------------------------------------------------------------------
         self.available_mcp_tools = {
             "web_search": BraveSearchTool() 
@@ -92,11 +91,10 @@ class ChatService:
 
         return cls._asr_pipeline
     
-    # [NEW] 등록된 모든 도구의 스키마(사용 설명서)를 리스트로 반환
     def _get_tool_schemas(self) -> List[Dict]:
         return [tool.get_schema() for tool in self.available_mcp_tools.values()]
 
-    def ask_question(self, session: SessionDep, user: User, context: str, question: str, audio: UploadFile) -> str:
+    def ask_question(self, session: SessionDep, user: User, context: str, question: str, audio: UploadFile, level: int) -> str:
         
         # -----------------------------------------------------
         # A. 오디오 처리 (STT)
@@ -139,7 +137,7 @@ class ChatService:
                 model=self.vllm_model_name,
                 messages=messages,
                 tools=tools,
-                tool_choice="auto", # [핵심] 모델이 도구 사용 여부를 스스로 판단 (Agentic Routing)
+                tool_choice="auto", # [핵심] 모델이 도구 사용 여부를 스스로 판단 (required로 하면 무조건 tool 사용)
                 temperature=0.7,
                 max_tokens=512
             )
@@ -147,9 +145,11 @@ class ChatService:
             response_message = response.choices[0].message
             tool_calls = response_message.tool_calls
 
+            logger.warning(f"LLM이 도구 사용을 시도했는지 확인: {len(tool_calls)}건")
+            
             # 3. 모델이 "도구를 써야해!"라고 판단했는지 확인
             if tool_calls:
-                logger.info(f"LLM이 도구 사용을 요청했습니다: {len(tool_calls)}건")
+                logger.warning(f"LLM이 도구 사용을 요청했습니다: {len(tool_calls)}건")
                 
                 # (중요) 대화 흐름 유지를 위해 모델의 '도구 호출 의도'를 히스토리에 추가
                 messages.append(response_message)
@@ -164,6 +164,8 @@ class ChatService:
                         
                         # 도구 실행 (Brave API 호출 등)
                         function_response = tool_instance.run(**function_args)
+                        
+                        logger.warning(function_response)
                         
                         # 실행 결과(검색 내용)를 대화 내역에 추가 (Role: tool)
                         messages.append({
@@ -182,7 +184,9 @@ class ChatService:
                     temperature=0.7,
                     max_tokens=512
                 )
+                
                 answer = final_response.choices[0].message.content
+                
                 return ChatResponse(question=question, answer=answer)
 
             else:
@@ -207,21 +211,24 @@ class ChatService:
         시스템 프롬프트와 컨텍스트를 조합하여 메시지 리스트를 생성합니다.
         """
         system_instruction = (
-            "당신은 'K-Lingo'의 핵심 지식 엔진입니다. 불필요한 인사말(Hello, Hi 등)이나 "
-            "의례적인 문장은 **절대 사용하지 마세요.** 질문을 받자마자 본론으로 시작하십시오.\n\n"
+            # 역할을 너무 한국어 튜터로 한정 지으면 tool 사용을 잘 하지 않아서 페르소나 유연하게 변경
+            "# 역할\n"
+            "당신은 한국어 학습자를 위한 스마트 AI 비서 'K-Lingo'입니다.(tutor + tool)\n\n"
             
-            "답변 시 다음의 **강력한 규칙**을 따르세요:\n"
-            "1. **인사말 금지**: 'Hello', ' assist you'와 같은 도입부를 생략하고 바로 피드백이나 정보를 제공하세요.\n"
-            "2. **[Chat History] 중심 답변**: 답변의 첫 문장은 반드시 이전 대화 내용(History)을 언급하며 시작하세요. "
-            "(예: 'Based on your previous question about...', 'As we discussed earlier regarding...') "
-            "이전 기록을 인용하여 현재 질문과 어떻게 연결되는지 명확히 밝히세요.\n"
-            "3. **전문적 피드백**: [Game Context]와 [Chat History]를 결합하여 사용자의 한국어 학습 상태에 대한 "
-            "날카롭고 구체적인 피드백을 제공하세요.\n"
-            "4. **가독성 극대화**: 본론만 전달하되, 볼드체와 리스트를 사용하여 정보를 구조화하세요.\n"
-            "5. 모든 응답은 **영어(English)**로 작성하세요.(중국어/한자 절대 금지)\n"
-            "6. 응답의 전체 길이는 **반드시 100자 이내**로 줄여서 간결하게 작성 해주세요\n"
-            # [NEW] 도구 사용에 대한 힌트 추가 (선택 사항이지만 성능 향상에 도움됨)
-            "7. 최신 정보나 사실 확인이 필요하다면 제공된 도구(web_search)를 적극적으로 활용하세요."
+            "### **[중요] 도구 사용 규칙 (최우선 순위)**\n"
+            "답변을 생성하기 **전**, 사용자의 질문을 먼저 분석하십시오:\n"
+            "- 사용자가 **실시간 정보**(예: 날씨, 뉴스, 주가, 최신 사건 등)를 요청하면, **반드시** `web_search` 도구를 즉시 사용하십시오.\n"
+            "- 실시간 주제에 대해 당신의 학습된 기억(Training Memory)에 의존하여 대답하지 마십시오.\n"
+            "- 예시: 사용자가 '서울 날씨 어때?'라고 묻는다면, 즉시 `web_search(query='current weather in Seoul')`을 호출하세요.\n\n"
+            
+            "### **답변 생성 가이드라인 (도구 미사용 시)**\n"
+            "도구 사용이 필요 없는 경우, 다음의 **강력한 규칙**을 따르세요:\n"
+            "1. **영어 사용 필수**: 모든 응답은 **영어(English)**로 작성하세요. (중국어/한자 절대 금지)\n"
+            "2. **인사말 금지**: 'Hello', 'I can help you'와 같은 의례적인 서두를 생략하고 바로 본론으로 시작하세요.\n"
+            "3. **[Chat History] 연결**: 답변의 첫 문장은 반드시 이전 대화 내용(History)을 언급하며 시작하세요. "
+            "(예: 'Based on your previous question about...', 'As we discussed earlier...')\n"
+            "4. **전문적 피드백**: [Game Context]와 [Chat History]를 결합하여 사용자의 한국어 학습 상태에 대해 날카롭고 구체적인 피드백을 제공하세요.\n"
+            "5. **간결성 유지**: 가독성을 위해 볼드체를 사용하되, 전체 길이는 **반드시 100자(characters) 이내**로 줄여서 작성하세요."
         )
 
         # 컨텍스트와 유저 질문을 결합 (RAG 패턴)
@@ -243,7 +250,7 @@ class ChatService:
 
     def _request_vllm(self, messages: List[Dict[str, str]]) -> str:
         """
-        단순 텍스트 요청용 메서드 (ask_question 내부 로직과 별도로 필요할 때 사용)
+        단순 텍스트 요청용 메서드 (ask_question 내부 로직과 별도로 필요할 때 사용 - 현재 미사용)
         """
         response = self.vllm_client.chat.completions.create(
             model=self.vllm_model_name,
@@ -251,6 +258,7 @@ class ChatService:
             temperature=0.7,
             max_tokens=512
         )
+        
         return response.choices[0].message.content
 
     def _request_ollama(self, messages: List[Dict[str, str]]) -> str:
@@ -259,6 +267,7 @@ class ChatService:
             model=self.ollama_model_name,
             messages=messages
         )
+        
         return response['message']['content']
     
     def save_chat(self, session, user, question):
