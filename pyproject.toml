@@ -41,4 +41,5 @@ dependencies = [
     "gunicorn>=23.0.0",
     "rq>=2.6.1",
     "pgvector>=0.4.2",
+    "requests>=2.32.5",
 ]
