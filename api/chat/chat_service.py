@@ -19,6 +19,7 @@ from fastapi import UploadFile, HTTPException
 from openai import OpenAI, APIConnectionError, APITimeoutError
 import ollama
 
+# [중요] MCP 도구 파일이 존재해야 합니다 (app/mcp_tools/brave_search.py)
 from mcp_tools.brave_search import BraveSearchTool
 
 # 로깅 설정
@@ -30,30 +31,31 @@ class ChatService:
     
     def __init__(self):
         
-        # 1. STT 설정
+        # 1. STT 설정 (Lazy Loading을 위해 초기화는 _get_pipeline에서 수행)
         self.pipe = self._get_pipeline()
         
         # ---------------------------------------------------------
-        # 2. vLLM 설정 (Primary)
+        # 2. vLLM 설정 (Primary Provider)
         # ---------------------------------------------------------
         self.vllm_host = os.getenv("VLLM_HOST", "localhost")
         self.vllm_port = os.getenv("VLLM_PORT", "8200")
         self.vllm_base_url = f"http://{self.vllm_host}:{self.vllm_port}/v1"
         
-        # vLLM 사용 모델명
-        self.vllm_model_name = "Qwen/Qwen2.5-7B-Instruct-AWQ"
+        # [기본 모델] LoRA 레벨이 지정되지 않았거나 오류 발생 시 사용할 베이스 모델
+        self.base_model_name = "Qwen/Qwen2.5-7B-Instruct-AWQ"
         
         logger.info(f"Connecting to vLLM Server: {self.vllm_base_url}")
         
-        # vLLM용 클라이언트 초기화 (타임아웃 설정 권장)
+        # vLLM용 클라이언트 초기화
+        # [주의] 검색 등 도구 실행 시간을 고려하여 timeout을 20초 이상으로 넉넉히 설정
         self.vllm_client = OpenAI(
             base_url=self.vllm_base_url,
-            api_key="EMPTY",  # vLLM은 보통 키가 필요 없음
-            timeout=20.0      # [수정] 검색 대기 시간을 고려해 타임아웃을 넉넉히 설정
+            api_key="EMPTY",
+            timeout=20.0 
         )
 
         # ---------------------------------------------------------
-        # 3. Ollama 설정 (Fallback)
+        # 3. Ollama 설정 (Fallback Provider)
         # ---------------------------------------------------------
         self.ollama_model_name = "qwen2:7b-instruct"
         
@@ -66,57 +68,67 @@ class ChatService:
         
     @classmethod
     def _get_pipeline(cls):
+        """Whisper 모델을 메모리에 한 번만 로드하기 위한 싱글톤 메서드"""
         if cls._asr_pipeline is None:
-            
-            # 💡 모델 로딩이 필요한 시점에야 import 실행 (Lazy Loading)
             from transformers import pipeline
             import torch
-            
             try:
-                # 💡 GPU 사용 여부 확인 및 장치 설정
                 device = "cuda:0" if torch.cuda.is_available() else "cpu"
                 logger.info(f"ASR Pipeline Device set to: {device} (Lazy Load)")
                 
-                # 모델 초기화
                 cls._asr_pipeline = pipeline(
                     "automatic-speech-recognition", 
                     model="seastar105/whisper-small-komixv2",
                     device=device 
                 )
-                
                 logger.info("ASR Pipeline successfully loaded.")
             except Exception as e:
-                logger.error(f"FATAL ASR LOAD ERROR during lazy load: {e}")
+                logger.error(f"FATAL ASR LOAD ERROR: {e}")
                 raise HTTPException(status_code=503, detail="AI 서비스 초기화 실패")
 
         return cls._asr_pipeline
     
     def _get_tool_schemas(self) -> List[Dict]:
+        """등록된 도구들의 명세서(JSON Schema)를 리스트로 반환"""
         return [tool.get_schema() for tool in self.available_mcp_tools.values()]
+
+    def _get_model_by_level(self, level: int) -> str:
+        """
+        사용자 레벨(int)을 vLLM의 모델명(str)으로 변환합니다.
+        vLLM 실행 시 --lora-modules level1=..., level2=... 로 설정한 이름과 일치해야 합니다.
+        """
+        if level == 1:
+            return "level1"
+        elif level == 2:
+            return "level2"
+        elif level == 3:
+            return "level3"
+        else:
+            logger.warning(f"Invalid level '{level}'. Falling back to base model.")
+            return self.base_model_name
 
     def ask_question(self, session: SessionDep, user: User, context: str, question: str, audio: UploadFile, level: int) -> str:
         
+        # 0. 사용할 모델 결정 (Dynamic Routing)
+        target_model = self._get_model_by_level(level)
+        logger.info(f"▶ Processing Request with Model: {target_model} (Level: {level})")
+
         # -----------------------------------------------------
         # A. 오디오 처리 (STT)
         # -----------------------------------------------------
         if question is None:
-        
             file_name = 'chat_' + str(uuid.uuid4()) + '.wav'
             file_path = os.path.join(INPUT_DIR, file_name)
 
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(audio.file, buffer)
 
-            # soundfile로 오디오 로드
             audio_array, sampling_rate = sf.read(file_path)
-
-            # 오디오 시간 계산
-            audio_duration = len(audio_array) / sampling_rate
-            logger.info(f"오디오 처리 중: {audio_duration:.2f}초")
-
-            # 💡 싱글톤 self.pipe 사용
+            # audio_duration = len(audio_array) / sampling_rate # 필요시 사용
+            
             result = self.pipe(audio_array)
             question = result['text']
+            logger.info(f"STT Result: {question}")
         
         # -----------------------------------------------------
         # B. 히스토리 조회 및 저장 (RAG/Memory)
@@ -127,47 +139,44 @@ class ChatService:
         # -----------------------------------------------------
         # C. LLM 추론 및 도구 실행 루프
         # -----------------------------------------------------
-        # 1. 초기 메시지 및 도구 스키마 준비
         messages = self._build_messages(context, history, question)
-        tools = self._get_tool_schemas() # 동적으로 스키마 가져오기
+        tools = self._get_tool_schemas() 
 
         try:
-            # 2. vLLM에 1차 요청 (질문 + 도구 목록 전달)
+            # 1. vLLM 1차 요청 (질문 + 도구 목록 전달)
+            # [핵심] model=target_model을 사용하여 파인튜닝된 어댑터를 호출
             response = self.vllm_client.chat.completions.create(
-                model=self.vllm_model_name,
+                model=target_model,  
                 messages=messages,
                 tools=tools,
-                tool_choice="auto", # [핵심] 모델이 도구 사용 여부를 스스로 판단 (required로 하면 무조건 tool 사용)
-                temperature=0.7,
+                tool_choice="auto", # 모델이 판단하여 도구 사용
+                temperature=0.1,
                 max_tokens=512
             )
             
             response_message = response.choices[0].message
             tool_calls = response_message.tool_calls
 
-            logger.warning(f"LLM이 도구 사용을 시도했는지 확인: {len(tool_calls)}건")
-            
-            # 3. 모델이 "도구를 써야해!"라고 판단했는지 확인
+            logger.warning(f"🧩 LLM Tool Usage Ready: {len(tool_calls)} calls")
+
+            # 2. 모델이 도구 사용을 결정했는지 확인
             if tool_calls:
-                logger.warning(f"LLM이 도구 사용을 요청했습니다: {len(tool_calls)}건")
                 
-                # (중요) 대화 흐름 유지를 위해 모델의 '도구 호출 의도'를 히스토리에 추가
+                # 대화 문맥 유지를 위해 AI의 '도구 호출 의도'를 히스토리에 추가
                 messages.append(response_message)
 
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
                     
-                    # [MCP 패턴] 문자열 이름으로 실제 도구 객체를 찾아 실행
+                    # 실제 도구 실행 (MCP 패턴)
                     if function_name in self.available_mcp_tools:
                         tool_instance = self.available_mcp_tools[function_name]
                         
-                        # 도구 실행 (Brave API 호출 등)
+                        logger.info(f"Executing Tool: {function_name} with args: {function_args}")
                         function_response = tool_instance.run(**function_args)
                         
-                        logger.warning(function_response)
-                        
-                        # 실행 결과(검색 내용)를 대화 내역에 추가 (Role: tool)
+                        # 실행 결과를 메시지에 추가 (Role: tool)
                         messages.append({
                             "tool_call_id": tool_call.id,
                             "role": "tool",
@@ -175,13 +184,15 @@ class ChatService:
                             "content": function_response,
                         })
                     else:
-                        logger.warning(f"알 수 없는 도구 호출: {function_name}")
+                        logger.warning(f"Unknown tool called: {function_name}")
 
-                # 4. 도구 실행 결과를 포함하여 vLLM에 2차 요청 (최종 답변 생성)
+
+                # 3. vLLM 2차 요청 (최종 답변 생성)
+                # [핵심] 도구 실행 결과가 포함된 messages를 다시 보냄
                 final_response = self.vllm_client.chat.completions.create(
-                    model=self.vllm_model_name,
-                    messages=messages, # 이제 여기엔 검색 결과가 포함되어 있음
-                    temperature=0.7,
+                    model=target_model, 
+                    messages=messages,
+                    temperature=0.1,
                     max_tokens=512
                 )
                 
@@ -190,36 +201,47 @@ class ChatService:
                 return ChatResponse(question=question, answer=answer)
 
             else:
-                # 5. 도구 사용이 필요 없는 경우 (일반 대화)
+                
+                # 4. 도구 사용이 필요 없는 경우 (바로 답변 반환)
                 return ChatResponse(question=question, answer=response_message.content)
 
         except (APIConnectionError, APITimeoutError, Exception) as e:
-            # 6. 실패 시 에러 로깅 후 Ollama로 전환 (Fallback)
-            logger.warning(f"vLLM request failed ({type(e).__name__}): {e}")
-            logger.warning("Switching to fallback provider: Ollama...")
+            # 5. vLLM 실패 시 Ollama로 전환 (Fallback)
+            logger.error(f"vLLM({target_model}) Error: {e}")
+            logger.warning("⚠️ Switching to fallback provider: Ollama...")
             
             try:
-                # Ollama는 도구 없이 기본 답변만 수행 (복잡성 최소화)
+                # Ollama는 도구 없이 텍스트 대화만 수행
                 return ChatResponse(question=question, answer=self._request_ollama(messages))
             except Exception as ollama_e:
-                logger.error(f"Both vLLM and Ollama failed. Final error: {ollama_e}")
+                logger.critical(f"All providers failed. Error: {ollama_e}")
                 raise ollama_e
 
     def _build_messages(self, context: str, history: str, question: str) -> List[Dict[str, str]]:
-        
         """
-        시스템 프롬프트와 컨텍스트를 조합하여 메시지 리스트를 생성합니다.
+        시스템 프롬프트 구성: 도구 사용 유도와 페르소나 정의
         """
         system_instruction = (
-            # 역할을 너무 한국어 튜터로 한정 지으면 tool 사용을 잘 하지 않아서 페르소나 유연하게 변경
-            "# 역할\n"
-            "당신은 한국어 학습자를 위한 스마트 AI 비서 'K-Lingo'입니다.(tutor + tool)\n\n"
+            "# Role Definition\n"
+            "당신은 'K-Lingo'입니다. 당신의 역할은 두 가지 모드로 나뉩니다:\n"
+            "1. **Language Tutor Mode (기본)**: 한국어 표현, 문법, 번역 요청 시 작동.\n"
+            "2. **Information Agent Mode (특수)**: 날씨, 뉴스, 환율 등 실시간 정보 요청 시 작동.\n\n"
             
-            "### **[중요] 도구 사용 규칙 (최우선 순위)**\n"
-            "답변을 생성하기 **전**, 사용자의 질문을 먼저 분석하십시오:\n"
-            "- 사용자가 **실시간 정보**(예: 날씨, 뉴스, 주가, 최신 사건 등)를 요청하면, **반드시** `web_search` 도구를 즉시 사용하십시오.\n"
-            "- 실시간 주제에 대해 당신의 학습된 기억(Training Memory)에 의존하여 대답하지 마십시오.\n"
-            "- 예시: 사용자가 '서울 날씨 어때?'라고 묻는다면, 즉시 `web_search(query='current weather in Seoul')`을 호출하세요.\n\n"
+            "### **[긴급] 도구 호출 포맷 규칙 (엄격 준수)**\n"
+            "도구(web_search)를 사용해야 한다면, **절대** '제가 찾아보겠습니다', '잠시만요'와 같은 서론이나 생각(Thought)을 텍스트로 출력하지 마십시오.\n"
+            "**반드시 응답의 맨 첫 글자부터 도구 호출 구문(JSON 등)이 시작되어야 합니다.**\n"
+            "- ❌ 잘못된 예: '서울 날씨를 검색해 볼게요... <tool_call>...'\n"
+            "- ✅ 올바른 예: <tool_call>{\"name\": \"web_search\", ...}</tool_call>\n\n"
+            
+            "사용자의 질문을 분석하여 다음 로직에 따라 행동하십시오:\n"
+            
+            "**CASE A: 실시간 정보가 필요한 경우 (Real-time Info)**\n"
+            "- 조건: 질문에 '오늘', '지금', '날씨', '뉴스', '주가', '환율', '점수', '최신' 등의 시의성 키워드가 포함되거나 팩트 체크가 필요한 경우.\n"
+            "- 행동: **아는 척하거나 기억에 의존해 대답하지 마십시오.** 즉시 `web_search` 도구를 호출하십시오.\n\n"
+            
+            "**CASE B: 언어 학습 질문인 경우 (Language Learning)**\n"
+            "- 조건: '이거 한국어로 뭐야?', '문법 고쳐줘', '무슨 뜻이야?' 등의 질문.\n"
+            "- 행동: 검색 없이 당신의 지식으로 답변하십시오.\n\n"
             
             "### **답변 생성 가이드라인 (도구 미사용 시)**\n"
             "도구 사용이 필요 없는 경우, 다음의 **강력한 규칙**을 따르세요:\n"
@@ -229,9 +251,16 @@ class ChatService:
             "(예: 'Based on your previous question about...', 'As we discussed earlier...')\n"
             "4. **전문적 피드백**: [Game Context]와 [Chat History]를 결합하여 사용자의 한국어 학습 상태에 대해 날카롭고 구체적인 피드백을 제공하세요.\n"
             "5. **간결성 유지**: 가독성을 위해 볼드체를 사용하되, 전체 길이는 **반드시 100자(characters) 이내**로 줄여서 작성하세요."
+            
+            "### **Examples (Follow these patterns strictly)**\n"
+            "User: 오늘 서울 날씨 알려줘\n"
+            "Assistant: <tool_call>{\"name\": \"web_search\", \"arguments\": {\"query\": \"Seoul weather today\"}}</tool_call>\n\n"
+            "User: 사과가 영어로 뭐야?\n"
+            "Assistant: 사과는 영어로 'Apple'입니다.\n\n"
+            "User: 삼성전자 주가 얼마야?\n"
+            "Assistant: <tool_call>{\"name\": \"web_search\", \"arguments\": {\"query\": \"Samsung Electronics stock price\"}}</tool_call>\n"
         )
 
-        # 컨텍스트와 유저 질문을 결합 (RAG 패턴)
         full_user_content = f"""
         [Game Context]
         {context}
@@ -248,56 +277,40 @@ class ChatService:
             {'role': 'user', 'content': full_user_content}
         ]
 
-    def _request_vllm(self, messages: List[Dict[str, str]]) -> str:
-        """
-        단순 텍스트 요청용 메서드 (ask_question 내부 로직과 별도로 필요할 때 사용 - 현재 미사용)
-        """
-        response = self.vllm_client.chat.completions.create(
-            model=self.vllm_model_name,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=512
-        )
-        
-        return response.choices[0].message.content
-
     def _request_ollama(self, messages: List[Dict[str, str]]) -> str:
-        """Ollama 로컬로 요청"""
+        """Ollama 로컬로 요청 (Fallback용)"""
         response = ollama.chat(
             model=self.ollama_model_name,
             messages=messages
         )
-        
         return response['message']['content']
     
     def save_chat(self, session, user, question):
-        response = openai.embeddings.create(
-            input=question,
-            model="text-embedding-3-small"
-        )
-        vector_data = response.data[0].embedding 
+        try:
+            response = openai.embeddings.create(
+                input=question,
+                model="text-embedding-3-small"
+            )
+            vector_data = response.data[0].embedding 
 
-        chat = ChatHistory(
-            user_id=user.id,
-            question=question,
-            embedding=vector_data
-        )
-        session.add(chat)
-        session.commit()
+            chat = ChatHistory(
+                user_id=user.id,
+                question=question,
+                embedding=vector_data
+            )
+            session.add(chat)
+            session.commit()
+        except Exception as e:
+            logger.error(f"Chat save failed: {e}")
         
     def retrieve_similar_history(self, session: SessionDep, username: str, question: str) -> str:
-        """
-        사용자의 과거 대화 중 현재 질문과 가장 유사한 3개를 조회하여 문자열로 반환합니다.
-        """
         try:
-            # 1. 현재 질문의 임베딩 벡터 생성
             response = openai.embeddings.create(
                 input=question,
                 model="text-embedding-3-small"
             )
             query_vector = response.data[0].embedding
 
-            # 2. DB 조회 쿼리 작성
             statement = (
                 select(ChatHistory)
                 .join(User, ChatHistory.user_id == User.id)
@@ -308,13 +321,11 @@ class ChatService:
             
             results = session.exec(statement).all()
 
-            # 3. LLM 프롬프트에 넣기 좋은 형태(문자열)로 변환
             history = ""
             for chat in results:
                 history += f"User: {chat.question}\n"
             
             return history
-
         except Exception as e:
             logger.error(f"Failed to retrieve chat history: {e}")
             return ""
