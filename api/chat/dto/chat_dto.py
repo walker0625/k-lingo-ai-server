@@ -7,3 +7,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     question: str
     answer: str
+    
+class DailyResponse(BaseModel):
+    question: str
+    answer: str
