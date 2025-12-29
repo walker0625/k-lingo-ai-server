@@ -10,7 +10,6 @@ from db.model.user import User
 from api.chat.chat_service import ChatService
 from api.chat.dto.chat_dto import ChatResponse
 
-from api.chat.gpt_service import ask_gpt4o
 from api.chat.dto.chat_dto import DailyResponse
 
 ## logger
