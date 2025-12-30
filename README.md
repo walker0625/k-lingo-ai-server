@@ -1,4 +1,4 @@
-# K-Lingo AI Server: 고성능 Multi-Agent 한국어 튜터링 플랫폼
+# K-Lingo AI Server: 고성능 Multi-Agent 한국어 튜터링 서버
 
 > **"Fine-tuned LLM과 Multi-Agent가 만드는 초개인화 한국어 교육 시스템"**
 
