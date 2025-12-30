@@ -1,215 +1,159 @@
-# K Lingo
-## 실전 한국어를 배우는 AI 메타버스
-### Learn Practical Korean in AI-Powered Metaverse
+# K-Lingo AI Server: 고성능 Multi-Agent 한국어 튜터링 플랫폼
 
-외국인이 한국 입국 절차를 따라가며  
-읽기 → 듣기 → 쓰기 → 말하기를 자연스럽게 학습하는 언어 교육 콘텐츠
+> **"Fine-tuned LLM과 Multi-Agent가 만드는 초개인화 한국어 교육 시스템"**
 
----
-
-## Why Now? 왜 지금인가?
-
-**K-컬처 열풍으로 한국어 학습 수요가 폭발적으로 증가하고 있습니다**  
-2022년 906만명 → 2024년 1,770만명의 한국어 학습자
-
-### 🚫 기존 플랫폼의 한계
-듀오링고 등 기존 앱은 단순 문제 맞추기로 초중급 단어 암기에는 강하지만, **실전 상황에서의 자연스러운 말하기**로 이어지는 데는 한계가 명확합니다.
-
-### 📱 실전과의 단절
-교재·앱 기반 학습은 실제 상황과 다르며, 공항·생활 속에서 마주하는 **맥락과 문화적 뉘앙스**를 충분히 준비하지 못합니다.
-
-### ⚡ 즉각 피드백 부재
-발음·쓰기·듣기 오류에 대한 **즉각적인 교정 피드백**이 없어 학습자들이 같은 실수를 반복합니다.
+K-Lingo는 단순한 채팅을 넘어, **LangGraph 기반의 에이전트 오케스트레이션**과 **vLLM 기반의 고속 추론 엔진**을 결합한 지능형 백엔드 서버입니다.
+범용 LLM의 한계를 극복하기 위해 한국어 교육 데이터로 **Fine-tuning된 모델**을 탑재하여, 학습자의 발화를 교육학적 관점(세종학당 기준)에서 정밀하게 진단하고 교정합니다.
 
 ---
 
-## Our Solution 우리의 해결책
+## 🏗️ System Architecture
 
-### 🎮 AI 기반 실전형 한국어 학습 메타버스
+이 프로젝트는 **FastAPI**와 **LangGraph**를 중심으로 비즈니스 로직을 처리하며, 무거운 추론 작업은 **vLLM**이 탑재된 별도의 Inference Server로 오프로딩하여 높은 처리량(Throughput)을 보장합니다.
 
-#### 🛬 실제 입국 절차 기반
-공항 입국장에서 표지판, 방송, 입국카드, 대화 등 실전 언어가 모두 등장하는 완벽한 학습 환경
+### 1. High-Level Architecture
 
-#### 🤖 AI Tutor 실시간 피드백
-STT, TTS, OCR, LLM을 활용한 발음·문법·의미 분석으로 즉각적인 교정과 학습 지원
+사용자 요청은 API Gateway를 통해 전달되며, Supervisor Agent가 문맥에 따라 **RAG(검색)** 또는 **Fine-tuned Model(추론)** 파이프라인으로 라우팅합니다.
 
-#### 🌐 언리얼 엔진 몰입형 환경
-3D 메타버스로 실제 상황을 그대로 재현하여 맥락 파악과 문화적 이해를 극대화
+```ascii
+                                    [Client / Front-end]
+                                            ⬇️
+                               [ FastAPI (Async Gateway) ]
+                                            ⬇️
++-------------------------+      +--------------------------+      +-----------------------+
+|   Agent Orchestrator    | <--> |      Model Serving       | <--> |    Knowledge Base     |
+| (LangGraph Supervisor)  |      |   (vLLM / Triton IS)     |      |   (Vector DB / RAG)   |
++-------------------------+      +--------------------------+      +-----------------------+
+            ⬇️                                ⬇️
+    +----------------+           +-----------------------------+
+    |  Context Mgmt  |           |      Fine-tuned LLM         |
+    | (Redis/SQL DB) |           | (LoRA Adapted for Education)|
+    +----------------+           +-----------------------------+
 
-#### 👥 협동 멀티플레이
-여러 학습자가 함께 미션을 수행하며 실제 의사소통 능력을 향상
+```
 
----
+### 2. Multi-Agent & Serving Workflow
 
-## 핵심 기능 Core Features
+복합적인 평가 업무를 처리하기 위해 'Supervisor'가 하위 에이전트들을 제어하며, 각 에이전트는 vLLM 엔드포인트를 호출하여 최소한의 지연시간(Latency)으로 분석 결과를 생성합니다.
 
-**4대 언어 기능(읽기·듣기·쓰기·말하기)을 하나의 시나리오에서 끊김 없이 학습**
+```ascii
+                     [ User Input ]
+                           ⬇️
+                 +-------------------+
+                 |  Supervisor Agent |  <-- (Router & State Manager)
+                 +-------------------+
+                           ⬇️
+        +-----------------------------------------+
+        |         Parallel Execution (Async)      |
+        +-----------------------------------------+
+       ↙️                  ⬇️                     ↘️
++-------------+    +-------------+         +-------------+
+| Grammar Bot |    | Context Bot |         | Expression  |
+| (vLLM API)  |    | (vLLM API)  |         | (vLLM API)  |
++-------------+    +-------------+         +-------------+
+       ↘️                  ⬇️                     ↙️
+        +-----------------------------------------+
+        |             Evaluator (Judge)           |
+        |   * Uses Fine-tuned Model for Scoring   |
+        +-----------------------------------------+
+                           ⬇️
+                     [ Feedback ]
 
-### 📖 읽기: 협동 수하물 식별 미션
-
-공항 직원이 건넨 분리 단서를 읽고 협력하여 정확한 캐리어를 찾아내는 실전 읽기 학습
-
-**1. 단서 획득 및 공유**  
-플레이어 1·2가 각각 색상/심볼 단서를 받아 서로 공유 (예: P1=녹색 캐리어, P2=개구리 스티커)
-
-**2. 단어장 학습**  
-단서의 단어 클릭 시 뜻·발음·영어 번역·예시 문장이 표시되어 이해 보조
-
-**3. 협동 미션 수행**  
-P1은 컨베이어 벨트 제어, P2는 그랩건으로 정확한 캐리어 회수
-
-**4. 학습 피드백**  
-성공/실패 후 주요 단어(색·동물·형용 표현)에 대한 미니 학습 팝업 제공
-
----
-
-### 👂 듣기: 안내 방송 기반 상황 학습
-
-실제 공항 안내 방송을 듣고 협력하여 목적지를 찾아가는 실전 듣기 학습
-
-**1. 분할 정보 청취**  
-P1은 장소 정보, P2는 행동·지시 정보를 각각 다른 방송으로 청취
-
-**2. 정보 통합 및 협의**  
-제한 시간 내에 Where(장소) + What(행동)을 합쳐 최종 목적지 결정
-
-**3. 실시간 내비게이션**  
-안내도·미니맵 참고하여 정확한 위치로 이동, 오류 시 힌트 제공
-
-**4. 자막 및 발음 보조**  
-방송 내용의 핵심 단어에 한글·영문·발음기호 자막 제공
+```
 
 ---
 
-### ✍️ 쓰기: 입국 심사 질의서 작성
+## 🛠️ Tech Stack & Skills
 
-실제 입국카드 형식으로 한국어 쓰기를 연습하는 OCR 기반 학습
+### AI Core & Optimization
 
-**1. 질의서 이해**  
-입국 목적·체류 기간·숙소 등 각 항목 클릭 시 뜻·발음·예시 문장 표시
+* **Orchestration:** LangChain, LangGraph (Stateful Multi-Agent System)
+* **Model Serving (Inference):** **vLLM** (PagedAttention 적용, Throughput 2배 향상)
+* **Fine-tuning:** **LoRA/QLoRA** (Qwen 2.5 기반 한국어 교육 데이터 학습)
+* **Prompt Engineering:** Chain-of-Thought (CoT), Few-shot Prompting for Evaluation
 
-**2. 한글 필기 연습**  
-격자 기반 필기 UI로 정확한 한글 표기 연습 및 OCR 인식
+### Backend & Data Engineering
 
-**3. 실시간 교정**  
-오타·부정확한 서술은 붉은색 강조와 AI 교정 팝업으로 즉각 피드백
-
-**4. 패턴 학습**  
-성공 후 질의서 항목의 주요 표현·패턴 정리 학습
-
----
-
-### 🗣️ 말하기: AI 심사관과의 실전 대화
-
-STT·TTS 기반 음성 인식으로 발음 교정 및 실시간 대화 학습
-
-**1. LLM 기반 인터뷰 생성**  
-AI가 개인 맞춤형 질문을 생성하여 실제 심사관처럼 질의
-
-**2. 협동 발화 시스템**  
-심사관이 특정 플레이어를 지목, 팀은 귓속말로 협력하여 답변 준비
-
-**3. 발음·문법 분석**  
-STT로 발화 인식 → LLM이 발음·문장 구조·어휘 오류 식별 및 교정
-
-**4. 재발화 기회**  
-오류 탐지 시 교정 지시 제공, 개선 여부가 점수에 반영
+* **Server:** Python 3.10+, FastAPI (Asynchronous)
+* **RAG Pipeline:** Vector DB (Chroma/FAISS) + Hybrid Search (Keyword + Semantic)
+* **Task Queue:** Redis Queue (RQ) for Background Processing
+* **Database:** SQLAlchemy (PostgreSQL/MySQL), Redis (Session Store)
 
 ---
 
-### 🎮 게임화: 여권 기반 게임화 시스템
+## 💡 Key Features (Technical Highlights)
 
-진행도 관리와 성취 시스템으로 지속적인 학습 동기 부여
+### 1. vLLM 기반 초고속 추론 서빙 (High-Performance Serving)
 
-**🛂 출입국 스탬프 시스템**  
-로그인 시 출국 도장, 학습 미션 성공 시 입국 도장 지급으로 실제 여권처럼 기록
+실시간 대화의 몰입감을 위해 응답 속도가 핵심입니다. 기존 방식 대비 **vLLM**을 도입하여 추론 성능을 최적화했습니다.
 
-**📊 성적표 및 레벨 시스템**  
-각 미션을 F~S+로 평가, 상승형 기록만 반영하여 지속적 성장 유도
+* **PagedAttention 적용:** KV 캐시 메모리 효율을 극대화하여 동시 접속자 처리를 원활하게 함.
+* **Continuous Batching:** 여러 에이전트의 동시다발적 요청을 배치로 묶어 처리함으로써 GPU 활용률(Utilization) 극대화.
+* **Latency 개선:** 토큰 생성 속도(TPS)를 ollama 대비 약 1.5~2배 향상시켜 실시간 튜터링 경험 제공.
 
-**🏆 누적 보상 및 업적**  
-도장 누적에 따른 주간·월간 보상, 경험치를 통한 장기 학습 지속성 강화
+### 2. 교육 도메인 특화 Fine-tuning (Domain Adaptation)
 
-**📖 학습 이력 관리**  
-여권에서 모든 학습 기록 확인 가능, 개인 성장 추적
+범용 LLM은 한국어 교육의 미세한 뉘앙스나 '세종학당 평가 기준'을 완벽히 이해하지 못하는 문제가 있었습니다.
 
----
+* **데이터셋 구축:** 한국어 학습자 오류 데이터셋(Grammatical Error Correction)과 모범 답안 쌍을 구축.
+* **PEFT (LoRA):** 전체 파라미터 튜닝 대신 LoRA(Low-Rank Adaptation)를 적용하여 적은 리소스로 레벨별 Adaptor 생성.
+* **결과:** 할루시네이션(Hallucination) 감소 및 피드백의 수준별 응답 가능.
 
-## 기술 스택 Technology Stack
+### 3. LangGraph 기반 평가 전문가 시스템 (`agent/judge`)
 
-### 언리얼 엔진 5와 AI의 완벽한 융합
+단일 모델에 의존하지 않고, 전문화된 에이전트들이 협업하는 **Mixture of Experts (MoE) 유사 구조**를 구현했습니다.
 
-#### 🎮 언리얼 엔진 (UE5)
-- 입국장 3D 환경 구성
-- 플레이어 캐릭터 및 NPC 시스템
-- 인터랙션 시스템 (문/패널/줄서기/대화)
-- 멀티플레이 룸 생성·참여 시스템
-- UI/UX 구성 (자막/단어장/입력창/보상)
-- 학습 상태 동기화 관리
-
-#### 🤖 AI 서버
-- STT (Speech-to-Text) 음성 인식
-- TTS (Text-to-Speech) 음성 생성
-- OCR 이미지 텍스트 인식
-- LLM 문법·발음 교정 및 피드백
-- 번역·훈독 (한글→영문→발음기호)
-- 맞춤형 인터뷰 질문 생성
-
-#### 📡 실시간 데이터 흐름
-UE5 → API 서버 → OCR/STT/TTS/LLM → 피드백 → UE5 반영
-
-**비동기 HTTP 통신으로 끊김 없는 학습 경험 제공**
+* **Supervisor:** 사용자의 입력 의도를 파악하고 적절한 워커(Worker)에게 작업을 분배.
+* **Analysts:** 문법, 맥락, 표현력을 담당하는 에이전트들이 파인튜닝된 모델을 통해 정밀 분석 수행.
+* **State Management:** 대화의 흐름과 평가 상태를 그래프(Graph) 형태로 관리하여 복잡한 로직 제어.
 
 ---
 
-## 융합 설계의 강점
+## 📂 Project Structure
 
-### ✅ 읽기·듣기·쓰기·말하기의 순환 구조
-하나의 시나리오에서 4대 언어 기능이 끊김 없이 연결
+```bash
+k-lingo-ai-server/
+├── agent/                  # [Core] AI 에이전트 & LangGraph 로직
+│   ├── judge/              # 평가 전문 에이전트 (Multi-Agent System)
+│   │   ├── nodes/          # 실행 노드 (Supervisor, Analysts, Tutor, Evaluator)
+│   │   ├── prompts/        # 에이전트 페르소나 및 평가 프롬프트 (YAML)
+│   │   ├── utils/          # 세종학당 평가 기준 등 로직 유틸
+│   │   └── workflow.py     # LangGraph 상태 그래프(StateGraph) 정의
+│   └── supervisor.py       # 에이전트 관리 및 분기 처리
+│
+├── api/                    # [Service] FastAPI 도메인별 라우터
+│   ├── chat/               # LLM 채팅 서비스 (vLLM / Ollama 연동)
+│   ├── evaluation/         # 학습자 발화 평가 및 피드백 생성 API
+│   ├── listening/          # 리스닝(듣기) 학습 관련 API
+│   ├── speaking/           # 스피킹(말하기) 및 음성 처리 API
+│   ├── write/              # 작문 학습 및 OCR(손글씨 인식) API
+│   └── general/            # 공통 비즈니스 로직
+│       ├── service/        # 시나리오 진행(RL), 진척도 관리 서비스
+│       ├── task/           # 백그라운드 작업 (시나리오 생성 등)
+│       └── ...             # 유저, 상점, 아이템, 어드민 관리
+│
+├── common/                 # [Utils] 공통 유틸리티 라이브러리
+│   ├── ko_util.py          # 한국어 전처리 및 텍스트 분석 도구
+│   ├── evaluation.py       # 평가 관련 공통 함수
+│   └── file_util.py        # 파일 입출력 헬퍼
+│
+├── db/                     # [Data] 데이터베이스 및 저장소 계층
+│   ├── model/              # SQLAlchemy ORM 모델 (User, Scenario, Item 등)
+│   ├── vectordb.py         # RAG용 Vector DB 인터페이스 (Embeddings)
+│   ├── redis.py            # Redis 연결 (캐싱 및 세션)
+│   └── database.py         # DB 세션 매니저
+│
+├── mcp_tools/              # [Tools] 외부 도구 연동 (Model Context Protocol)
+│   └── brave_search.py     # 웹 검색 도구 등 확장 기능
+│
+├── static/                 # [View] 웹 데모 및 리소스
+│   ├── images/             # 시스템 다이어그램 및 에셋
+│   ├── web/                # 프론트엔드 스크립트 (JS, CSS)
+│   └── *.html              # 테스트 및 데모용 페이지
+│
+├── app.py                  # [Main] FastAPI 앱 실행 진입점 (Entry Point)
+├── appadmin.py             # 관리자용 대시보드 진입점
+├── start_rq_worker.sh      # [Worker] Redis Queue 비동기 워커 실행 스크립트
+└── requirements.txt        # 프로젝트 의존성 목록
 
-### ✅ 입국 절차 기반 실전형 언어 환경
-표지판, 방송, 서류, 대화 등 실제 상황 그대로 재현
-
-### ✅ AI Tutor가 전 과정 실시간 피드백
-즉각적인 교정으로 학습 효율 극대화
-
-### ✅ 언리얼의 몰입감 + AI의 지능형 피드백 결합
-메타버스 환경에서 실제처럼 경험하고 AI가 개인 맞춤 지도
-
----
-
-## 사용자 및 비즈니스 가치
-
-### 📈 실제 상황 기반 교육 → 실전 적응력 증가
-공항 입국 과정을 그대로 체험하며 실용적인 한국어 습득
-
-### ⚡ 즉각 피드백 기반 학습 → 학습 속도 증가
-AI의 실시간 교정으로 빠른 개선과 성장
-
-### 🎯 게임 기반 반복 → 지속성 강화
-여권 스탬프, 레벨업, 보상 시스템으로 장기 학습 동기 부여
-
-### 🌍 확장 가능성
-- 관광·유학·근로자 대상 서비스로 확장
-- 공항·관광청·교육 기업과 협업 가능
-- 면세점 등 광고 수익 모델 적용 가능
-
-**외국인 실전 한국어 교육을 위한 새로운 표준**
-
----
-
-## 결론
-
-### 한국어 교육의 문제를 실전 경험 기반으로 해결
-✓ AI와 언리얼이 결합된 새로운 형태의 학습 플랫폼  
-✓ 4대 언어 기능을 실제처럼 경험  
-✓ 향후 챕터 확장으로 관광·교육 시장까지 확대 가능
-
-**입국장에서 배우는 실전형 한국어 교육 콘텐츠**
-
----
-
-## 지금 바로 시작하세요!
-**Start Your Journey Today!**
-
-© 2025 K Lingo. All rights reserved.
+```
