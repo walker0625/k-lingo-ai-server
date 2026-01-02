@@ -5,6 +5,10 @@
 K-Lingo는 Text(LLM)만을 넘어 음성(STT/TTS), 이미지(OCR) AI 모델을 활용한, **LangGraph 기반의 에이전트 오케스트레이션**과 **vLLM 기반의 고속 추론 엔진**을 결합한 AI 백엔드 서버입니다.
 범용 LLM의 한계를 극복하기 위해 한국어 교육 데이터로 **Fine-tuning된 모델**(LoRA)을 적용하여, 학습자의 발화를 교육학적 관점(세종학당 기준)에서 정밀하게 진단하고 교정합니다.
 
+<img width="1484" height="782" alt="image" src="https://github.com/user-attachments/assets/5ffbde56-3557-4c4d-8a1c-ff42ecdf05cb" />
+<img width="1484" height="793" alt="image" src="https://github.com/user-attachments/assets/34235d16-2366-4c32-b170-5d0466c5cbb6" />
+<img width="1403" height="782" alt="image" src="https://github.com/user-attachments/assets/fe611dc7-03d2-4562-8f91-692dd238864d" />
+
 상세 내용 PPT : https://www.canva.com/design/DAG891OKYco/9KLsWyNkmYsfuIo2YeLTog/edit
 
 ---
