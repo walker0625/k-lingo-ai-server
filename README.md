@@ -74,8 +74,8 @@ K-Lingo는 단순한 채팅을 넘어, **LangGraph 기반의 에이전트 오케
 
 ### Backend & Data Engineering
 
-* **Server:** Python 3.10+, FastAPI (Asynchronous)
-* **RAG Pipeline:** Vector DB (Chroma/FAISS) + Hybrid Search (Keyword + Semantic)
+* **Server:** Python 3.11, FastAPI (Asynchronous)
+* **RAG Pipeline:** Vector DB (PGVector) 
 * **Task Queue:** Redis Queue (RQ) for Background Processing
 * **Database:** SQLAlchemy (PostgreSQL/MySQL), Redis (Session Store)
 
