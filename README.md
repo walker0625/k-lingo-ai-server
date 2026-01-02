@@ -3,7 +3,9 @@
 > **"Fine-tuned LLM과 Multi-Agent가 만드는 초개인화 한국어 교육 시스템"**
 
 K-Lingo는 단순한 채팅을 넘어, **LangGraph 기반의 에이전트 오케스트레이션**과 **vLLM 기반의 고속 추론 엔진**을 결합한 지능형 백엔드 서버입니다.
-범용 LLM의 한계를 극복하기 위해 한국어 교육 데이터로 **Fine-tuning된 모델**을 탑재하여, 학습자의 발화를 교육학적 관점(세종학당 기준)에서 정밀하게 진단하고 교정합니다.
+범용 LLM의 한계를 극복하기 위해 한국어 교육 데이터로 **Fine-tuning된 모델**(LoRA)을 탑재하여, 학습자의 발화를 교육학적 관점(세종학당 기준)에서 정밀하게 진단하고 교정합니다.
+
+상세 내용 PPT : https://www.canva.com/design/DAG891OKYco/9KLsWyNkmYsfuIo2YeLTog/edit
 
 ---
 
