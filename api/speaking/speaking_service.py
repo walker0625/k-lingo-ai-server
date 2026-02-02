@@ -111,16 +111,45 @@ class SpeakingService:
             
             assessment_data = self.judge_speaking(question, answer)
             
-            grammar_score = assessment_data.get('grammar_result', {}).get('grammar_score')
-            context_score = assessment_data.get('context_result', {}).get('context_score')
-            final_overall_score = assessment_data.get('score_result', {}).get('score')
+            # 결과 데이터 추출
+            grammar_data = assessment_data.get('grammar_result') or {}
+            context_data = assessment_data.get('context_result') or {}
+            score_data = assessment_data.get('score_result') or {}
+            
+            grammar_score = grammar_data.get('grammar_score')
+            context_score = context_data.get('context_score')
+            final_overall_score = score_data.get('score')
             final_feedback = assessment_data.get('final_feedback')
+            
+            # 시스템 오류 상태 확인
+            is_grammar_error = grammar_data.get('status') == 'SYSTEM_ERROR'
+            is_context_error = context_data.get('status') == 'SYSTEM_ERROR'
+            is_score_error = score_data.get('status') == 'EVALUATION_FAILED' or score_data.get('result') == 'SYSTEM_ERROR'
+            is_feedback_error = assessment_data.get('feedback_status') == 'SYSTEM_ERROR'
+            
+            # 전체 시스템 오류 여부 판단
+            has_any_error = is_grammar_error or is_context_error or is_score_error or is_feedback_error
+            all_failed = is_grammar_error and is_context_error and is_score_error
+            
+            # 상태 결정
+            if all_failed:
+                status = "SYSTEM_ERROR"
+                error_message = "시스템 오류로 평가를 완료할 수 없습니다. 다시 시도해주세요."
+            elif has_any_error:
+                status = "PARTIAL_ERROR"
+                error_message = "일부 평가가 완료되지 않았습니다."
+            else:
+                status = "SUCCESS"
+                error_message = None
             
             response_object = SpeakingResponse(
                 grammar_score=grammar_score,
                 context_score=context_score,
                 final_overall_score=final_overall_score,
-                final_feedback=final_feedback
+                final_feedback=final_feedback,
+                status=status,
+                is_system_error=has_any_error,
+                error_message=error_message
             )
             
             # redis에 result값 업데이트(저장값이 문자열이라 조회 -> 수정 -> 재저장으로 진행)
@@ -130,10 +159,11 @@ class SpeakingService:
             stored_str = await redis.load_user_state("KLINGO-CURRENT", username)
             current_data = json.loads(stored_str)
         
-            # 현재 평가 결과 객체 생성
+            # 현재 평가 결과 객체 생성 (시스템 오류 시에도 기록)
             new_score_entry = {
                 "score": final_overall_score,
-                "desc": final_feedback
+                "desc": final_feedback,
+                "status": status  # 오류 상태도 함께 저장
             }
         
             # 'result' 키가 없거나 딕셔너리가 아니면 초기화 (기존 데이터 호환성 유지)
@@ -289,7 +319,11 @@ class SpeakingService:
             "score_result": None,
             "final_feedback": None,
             "next_worker": None,
-            "revision_count": 0
+            "revision_count": 0,
+            
+            # [에러 핸들링] 노드 실패 추적용
+            "error_states": None,
+            "retry_counts": None
         }
 
         logger.info("========================================")

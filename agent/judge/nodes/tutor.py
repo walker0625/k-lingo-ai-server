@@ -3,7 +3,7 @@ import json
 import re
 from langchain_core.messages import SystemMessage, HumanMessage
 from ..states import AssessmentState
-from .analysts import prompts
+from .analysts import prompts, NodeErrorType, _update_error_state, _update_retry_count
 from ..logger import get_logger
 
 logger = get_logger("Tutor")
@@ -18,11 +18,14 @@ def extract_json_from_markdown(text: str) -> str:
 def feedback_tutor(state: AssessmentState, llm) -> dict:
     logger.info("👩‍🏫 피드백 생성 시작...")
     
-    score_data = state.get("score_result", {"score": 0, "result": "Fail"})
+    # None 체크 후 기본값 설정
+    score_data = state.get("score_result") or {"score": 0, "result": "Fail"}
+    grammar_data = state.get('grammar_result') or {'issues': ['분석 데이터 없음']}
+    context_data = state.get('context_result') or {'reason': '분석 데이터 없음'}
     
     # 데이터 직렬화 (ensure_ascii=False로 한글 깨짐 방지)
-    grammar_errors_str = json.dumps(state.get('grammar_result', {'issues': ['분석 데이터 없음']}).get('issues', ['없음']), ensure_ascii=False)
-    context_errors_str = json.dumps(state.get('context_result', {'reason': '분석 데이터 없음'}).get('reason', '없음'), ensure_ascii=False)
+    grammar_errors_str = json.dumps(grammar_data.get('issues', ['없음']), ensure_ascii=False)
+    context_errors_str = json.dumps(context_data.get('reason', '없음'), ensure_ascii=False)
 
     # 1. 시스템 프롬프트 포맷팅
     system_msg = prompts["tutor_system"].format(
@@ -46,7 +49,24 @@ def feedback_tutor(state: AssessmentState, llm) -> dict:
         HumanMessage(content=input_msg)
     ]
     
-    response = llm.invoke(messages)
+    # LLM 호출 with 에러 핸들링
+    try:
+        response = llm.invoke(messages)
+    except TimeoutError as e:
+        logger.error(f"❌ 피드백 생성 LLM 타임아웃: {e}")
+        return {
+            "final_feedback": None,
+            "error_states": _update_error_state(state, "tutor", NodeErrorType.LLM_TIMEOUT),
+            "retry_counts": _update_retry_count(state, "tutor")
+        }
+    except Exception as e:
+        logger.error(f"❌ 피드백 생성 LLM 호출 실패: {type(e).__name__} - {e}")
+        return {
+            "final_feedback": None,
+            "error_states": _update_error_state(state, "tutor", NodeErrorType.LLM_API_ERROR),
+            "retry_counts": _update_retry_count(state, "tutor")
+        }
+    
     raw_content = response.content.strip()
     final_feedback = raw_content
 
@@ -61,9 +81,14 @@ def feedback_tutor(state: AssessmentState, llm) -> dict:
         logger.info("✅ 피드백 생성 완료 (JSON 파싱 성공)")
         
     except Exception:
-        logger.error("❌ 피드백 JSON 파싱 실패. 원본 텍스트를 피드백으로 사용합니다.")
-        
+        logger.warning("⚠️ 피드백 JSON 파싱 실패. 원본 텍스트를 피드백으로 사용합니다.")
+    
+    # 성공 시 에러 상태 클리어
+    error_states = dict(state.get("error_states") or {})
+    error_states["tutor"] = None
+    
     return {
         "final_feedback": final_feedback,
-        "revision_count": state.get("revision_count", 0) + 1
+        "revision_count": state.get("revision_count", 0) + 1,
+        "error_states": error_states
     }

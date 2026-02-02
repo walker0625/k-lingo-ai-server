@@ -9,6 +9,13 @@ from typing import Dict, Any
 
 logger = get_logger("Analyst")
 
+# 에러 타입 상수 정의
+class NodeErrorType:
+    LLM_TIMEOUT = "LLM_TIMEOUT"
+    LLM_API_ERROR = "LLM_API_ERROR"
+    PARSE_ERROR = "PARSE_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
 def load_prompts():
     prompt_path = Path(__file__).parent.parent / "prompts" / "assessment.yaml"
     with open(prompt_path, "r", encoding="utf-8") as f:
@@ -23,6 +30,18 @@ def _get_safe_state_value(value, default: str = ""):
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     return str(value)
+
+def _update_error_state(state: AssessmentState, node_name: str, error_type: str) -> Dict[str, str]:
+    """에러 상태를 업데이트하고 반환"""
+    error_states = dict(state.get("error_states") or {})
+    error_states[node_name] = error_type
+    return error_states
+
+def _update_retry_count(state: AssessmentState, node_name: str) -> Dict[str, int]:
+    """재시도 횟수를 증가시키고 반환"""
+    retry_counts = dict(state.get("retry_counts") or {})
+    retry_counts[node_name] = retry_counts.get(node_name, 0) + 1
+    return retry_counts
 
 def linguistic_analyst(state: AssessmentState, llm) -> dict:
     logger.info("📝 문법 분석 시작...")
@@ -42,16 +61,36 @@ def linguistic_analyst(state: AssessmentState, llm) -> dict:
         HumanMessage(content=f"사용자 발화: {state['user_text']}")
     ]
     
-    response = llm.invoke(messages)
+    # LLM 호출 with 에러 핸들링
+    try:
+        response = llm.invoke(messages)
+    except TimeoutError as e:
+        logger.error(f"❌ 문법 분석 LLM 타임아웃: {e}")
+        return {
+            "grammar_result": None,
+            "error_states": _update_error_state(state, "linguist", NodeErrorType.LLM_TIMEOUT),
+            "retry_counts": _update_retry_count(state, "linguist")
+        }
+    except Exception as e:
+        logger.error(f"❌ 문법 분석 LLM 호출 실패: {type(e).__name__} - {e}")
+        return {
+            "grammar_result": None,
+            "error_states": _update_error_state(state, "linguist", NodeErrorType.LLM_API_ERROR),
+            "retry_counts": _update_retry_count(state, "linguist")
+        }
     
+    # JSON 파싱
     try:
         result = json.loads(response.content)
         logger.info("✅ 문법 분석 완료")
-    except Exception as e:
+        # 성공 시 에러 상태 클리어
+        error_states = dict(state.get("error_states") or {})
+        error_states["linguist"] = None
+        return {"grammar_result": result, "error_states": error_states}
+    except json.JSONDecodeError as e:
         logger.error(f"❌ 문법 분석 결과 파싱 실패: {e}")
-        result = {"score": 0, "issues": [f"파싱 실패: {e}"]} 
-        
-    return {"grammar_result": result}
+        result = {"grammar_score": 0, "issues": [f"파싱 실패: {e}"]} 
+        return {"grammar_result": result}
 
 def context_analyst(state: AssessmentState, llm) -> dict:
     logger.info("👀 맥락 분석 시작...")
@@ -72,18 +111,37 @@ def context_analyst(state: AssessmentState, llm) -> dict:
         HumanMessage(content=f"답변: {state['user_text']}")
     ]
     
-    response = llm.invoke(messages)
+    # LLM 호출 with 에러 핸들링
     try:
-        # Llama 모델의 마크다운 JSON 블록 처리
+        response = llm.invoke(messages)
+    except TimeoutError as e:
+        logger.error(f"❌ 맥락 분석 LLM 타임아웃: {e}")
+        return {
+            "context_result": None,
+            "error_states": _update_error_state(state, "context_analyst", NodeErrorType.LLM_TIMEOUT),
+            "retry_counts": _update_retry_count(state, "context_analyst")
+        }
+    except Exception as e:
+        logger.error(f"❌ 맥락 분석 LLM 호출 실패: {type(e).__name__} - {e}")
+        return {
+            "context_result": None,
+            "error_states": _update_error_state(state, "context_analyst", NodeErrorType.LLM_API_ERROR),
+            "retry_counts": _update_retry_count(state, "context_analyst")
+        }
+    
+    # JSON 파싱
+    try:
         json_text = response.content.strip()
         if json_text.startswith("```json"):
             json_text = json_text.split("```json")[1].split("```")[0].strip()
         
         result = json.loads(json_text)
         logger.info("✅ 맥락 분석 완료")
-    except Exception as e:
+        # 성공 시 에러 상태 클리어
+        error_states = dict(state.get("error_states") or {})
+        error_states["context_analyst"] = None
+        return {"context_result": result, "error_states": error_states}
+    except json.JSONDecodeError as e:
         logger.error(f"❌ 맥락 분석 결과 파싱 실패: {e}")
-        # 동문서답 여부를 확인할 수 없으므로 is_relevant: False로 간주 (Worst Case Fallback)
         result = {"context_score": 0, "is_relevant": False, "reason": "시스템 오류"}
-        
-    return {"context_result": result}
+        return {"context_result": result}
